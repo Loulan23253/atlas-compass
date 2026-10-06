@@ -44,8 +44,9 @@ function parseExifGpsInner(buf: Uint8Array): { lat: number; lng: number; date: s
   const ifd0 = tiff + rd32(tiff + 4);
 
   // 遍历 IFD 找 GPS IFD(0x8825) 与 Exif IFD(0x8769)；逐项检查边界，畸形/截断数据提前终止
-  const walkIfd = (base: number): Map<number, { type: number; count: number; valueOff: number; inline: number[] }> => {
-    const entries = new Map();
+  type IfdEntry = { type: number; count: number; valueOff: number; inline: number[] };
+  const walkIfd = (base: number): Map<number, IfdEntry> => {
+    const entries = new Map<number, IfdEntry>();
     if (base < 0 || base + 2 > buf.length) return entries;
     const count = rd16(base);
     for (let i = 0; i < count; i++) {

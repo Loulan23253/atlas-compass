@@ -122,7 +122,7 @@ export class AddCityCommand {
       }
       const file = this.plugin.app.vault.getAbstractFileByPath(path) as TFile | null;
       if (file) {
-        await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
+        await this.plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
           fm.name = d.name;
           fm.country = d.country;
           fm.lat = d.lat;

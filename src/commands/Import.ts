@@ -455,7 +455,7 @@ export class ImportModal extends Modal {
         if (processed % 30 === 0 || processed === this.gpsDays.length) {
           this.statusEl.setText(`驻留分析中… ${processed}/${this.gpsDays.length} 天`);
           // 让出主线程一帧，使进度文本有机会渲染
-          await new Promise((r) => setTimeout(r, 0));
+          await new Promise((r) => window.setTimeout(r, 0));
         }
         // 同一天可能到访多个城市（上午 A 下午 B），都记录
         for (const v of visits) {
@@ -593,7 +593,7 @@ export function trackSig(
   stays: unknown,
   avgKmh: unknown,
 ): string {
-  return `${points}|${km}|${trips}|${stays}|${avgKmh}`;
+  return `${String(points)}|${String(km)}|${String(trips)}|${String(stays)}|${String(avgKmh)}`;
 }
 
 /** 单日里程（km，1 位小数）：与写盘 properties.km 同一算法（trackLengthKm 保留 1 位小数） */
@@ -738,7 +738,7 @@ export async function mergeVisitDates(plugin: AtlasPlugin, notePath: string, dat
   await plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
     const existing = Array.isArray(fm.visitDates)
       ? fm.visitDates.map(String)
-      : fm.visitDates
+      : typeof fm.visitDates === "string" || typeof fm.visitDates === "number"
         ? [String(fm.visitDates)]
         : [];
     // 粒度互斥去重：已有月串（2025-09）时不加该月内的完整日期，反之亦然
@@ -836,6 +836,8 @@ function parseJson(content: string): ImportRow[] {
     : Array.isArray((raw as { cities?: unknown })?.cities)
       ? (raw as { cities: unknown[] }).cities
       : [];
+  const kindOf = (v: unknown): CityKind | undefined =>
+    v === "place" ? "place" : v === "city" ? "city" : undefined;
   return list
     .map((it) => {
       const o = (it ?? {}) as Record<string, unknown>;
@@ -848,8 +850,8 @@ function parseJson(content: string): ImportRow[] {
         visitDates: Array.isArray(o.visitDates) ? o.visitDates.map(String) : undefined,
         lastVisit: str(o.lastVisit),
         notes: str(o.notes),
-        type: o.type === "place" ? "place" : o.type === "city" ? "city" : undefined,
-      } as ImportRow;
+        type: kindOf(o.type),
+      };
     })
     .filter((r) => r.name);
 }
@@ -914,7 +916,7 @@ export function parseCsv(content: string): ImportRow[] {
         lastVisit: get("lastVisit"),
         notes: get("notes") || undefined,
         type: type === "place" ? "place" : type === "city" ? "city" : undefined,
-      } as ImportRow;
+      } satisfies Pick<ImportRow, "type"> & Record<string, unknown>;
     })
     .filter((r) => r.name);
 }

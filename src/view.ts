@@ -84,7 +84,9 @@ export class AtlasView extends ItemView {
       this.dashboardEl,
       (c) => this.select(c),
       (country) => this.filterCountry(country),
-      (c) => this.locate(c),
+      (c) => {
+        void this.locate(c);
+      },
     );
 
     this.sidebar = new AtlasSidebar(this.plugin, this.sidebarEl, (c) => this.select(c));
@@ -94,8 +96,8 @@ export class AtlasView extends ItemView {
     try {
       this.atlasMap = new AtlasMap(this.plugin, this.mapEl, (c) => this.select(c));
       this.renderStats();
-      setTimeout(() => { if (!this.closed) this.atlasMap?.invalidate(); }, 100);
-      setTimeout(() => { if (!this.closed) this.atlasMap?.invalidate(); }, 500);
+      window.setTimeout(() => { if (!this.closed) this.atlasMap?.invalidate(); }, 100);
+      window.setTimeout(() => { if (!this.closed) this.atlasMap?.invalidate(); }, 500);
     } catch (e) {
       console.error("Atlas map initialization failed", e);
       const status = this.mapEl.createDiv("atlas-map-status");
@@ -112,7 +114,7 @@ export class AtlasView extends ItemView {
     this.mapPane?.toggleClass("is-hidden", mode !== "map");
     this.dashboardEl?.toggleClass("is-hidden", mode !== "dashboard");
     if (mode === "dashboard") this.dashboard?.render();
-    setTimeout(() => { if (!this.closed) this.atlasMap?.invalidate(); }, 60);
+    window.setTimeout(() => { if (!this.closed) this.atlasMap?.invalidate(); }, 60);
   }
 
   filterCountry(country: string): void {
@@ -129,7 +131,7 @@ export class AtlasView extends ItemView {
       if (found) {
         const file = this.app.vault.getAbstractFileByPath(city.note);
         if (file instanceof TFile) {
-          await this.app.fileManager.processFrontMatter(file, (fm) => {
+          await this.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
             fm.lat = found.lat;
             fm.lng = found.lng;
           });

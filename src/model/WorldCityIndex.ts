@@ -7,7 +7,6 @@
  * 让海外 GPS 轨迹也能落到"到访城市"。
  */
 
-const PLUGIN_DATA_PATH = ".obsidian/plugins/atlas_v3/data";
 
 /** 库内城市条目（字段缩写以贴近 worldcities.json 的体积开销） */
 interface WorldCity {
@@ -28,6 +27,8 @@ interface WorldCityHit {
   lng: number;
   distKm: number;
 }
+
+import { pluginDataPath } from "../util/DataPath";
 
 const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
 
@@ -101,7 +102,7 @@ export function loadWorldCityIndex(
   loading = (async () => {
     let cities: WorldCity[] = [];
     try {
-      const text = await readText(`${PLUGIN_DATA_PATH}/worldcities.json`);
+      const text = await readText(`${pluginDataPath()}/worldcities.json`);
       cities = text ? (JSON.parse(text) as WorldCity[]) : [];
     } catch (e) {
       // 数据文件损坏 → 空库降级（不抛出，允许下次重试加载）

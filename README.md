@@ -1,18 +1,40 @@
-# Atlas — Geographic Knowledge System for Obsidian
+# Atlas Compass
 
-A fully offline geographic knowledge system for [Obsidian](https://obsidian.md).
+A fully offline geographic knowledge system for [Obsidian](https://obsidian.md). Bring your own GPS history (CSV / GPX exports from any tracking app) and Atlas Compass turns it into an interactive, completely offline world map with travel statistics — no network access required, ever.
 
-- **Offline vector map** — country, province, and city boundaries (China, Japan, and world)
-- **GPS track import** — CSV / GPX with automatic trip recognition and transport classification (walk / bike / car / HSR / metro / train)
-- **Visit determination** — cumulative dwell or cluster-based stay detection
-- **Land coverage grid** — 494,312 cells across China, rendered as an interactive map
-- **Trip notes** — auto-generated with emoji transport icons, daily stats, and altitude profiles
-- **Coverage map SVG** — your footprints drawn on a China outline
-- **Year in review** — rankings, monthly distribution, new cities
-- **34,149 city geocoding fallback** (GeoNames) — worldwide city attribution
-- **131 airports** with Chinese names
+## Features
 
-> The README below is primarily in Chinese. English documentation is planned.
+- **Offline vector map** — country, province, and city boundaries (world, China, Japan) rendered with Leaflet; nothing is fetched from tile servers
+- **GPS track import** — CSV / GPX with automatic trip segmentation and transport classification (walk / bike / car / coach / high-speed rail / metro / train / plane), plus teleport, spike, and U-turn cleaning
+- **Stay detection** — adjacency-cluster stay points with a hybrid validity rule (time span, displacement, and accuracy quality), mirroring what commercial trackers do
+- **Visit determination** — three strictness levels based on cumulative dwell time or single-stay length; home-city visits can be simplified to monthly entries
+- **Lit map** — visited countries, provinces, and cities light up in warm gold; click a lit region for visit statistics
+- **Land coverage grid** — 494,312 geohash cells across China's land area, lit by your tracks, with a coverage percentage and a printable SVG report
+- **Trip notes** — auto-generated multi-day trip reports with emoji transport icons, wikilinked city notes, daily distances, and altitude profile SVGs
+- **Year in review** — per-year rankings, monthly distribution bars, and newly visited cities
+- **Photo footprint** — scans JPG EXIF in your vault (config folder excluded) and builds a photo-travel report
+- **34,149-city geocoding fallback** (GeoNames) — worldwide city attribution for tracks outside covered admin2 datasets
+- **131 airports** with Chinese names for flight detection
+
+## Manual installation
+
+1. Download `main.js`, `manifest.json`, `styles.css` from the [latest release](https://github.com/Loulan23253/atlas-compass/releases) into `<vault>/.obsidian/plugins/atlas-compass/`.
+2. The offline datasets (boundaries, city library, coverage grid) live in the repository's `data/` folder (about 75 MB). Copy it to `<vault>/.obsidian/plugins/atlas-compass/data/`.
+3. Enable **Atlas Compass** in Obsidian's community plugins settings.
+
+## Usage
+
+1. Run **打开 Atlas 旅行地图** (Open Atlas travel map) from the command palette.
+2. Create city notes (`type: city` frontmatter) manually or import from CSV/JSON.
+3. Drop GPS CSV / GPX files into the import dialog (ribbon or command palette) — tracks, stays, transport modes, and coverage are derived automatically into `Travel/`.
+
+## Privacy & network
+
+Atlas Compass performs **zero network requests**. All boundaries, the city library, and the coverage grid ship inside the plugin's `data/` folder. The only optional network feature is geocoding for the manual "add city" flow, which you can disable by leaving the endpoint setting on Photon or replacing it — no track, location, or vault data ever leaves your device.
+
+## Documentation
+
+完整的中文文档见下方（The rest of this README is in Chinese）.
 
 ---
 

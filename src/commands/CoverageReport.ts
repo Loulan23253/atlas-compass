@@ -3,7 +3,7 @@ import type { Geometry } from "geojson";
 import type AtlasPlugin from "../main";
 import { loadChinaCells } from "../model/LandCoverage";
 import { geohashBounds } from "../model/TrackClean";
-import { loadAdminGeoJson, findCityFeature, type AdminFeature } from "../map/GeoJsonLoader";
+import { loadAdminGeoJson, findCityFeature } from "../map/GeoJsonLoader";
 import { ensureFolder, todayISO } from "../util/File";
 
 /**

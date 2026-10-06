@@ -37,7 +37,7 @@ export class PhotoFootprintCommand {
           f instanceof TFile &&
           (f.extension === "jpg" || f.extension === "jpeg") &&
           !skipPrefixes.some((p) => f.path.startsWith(p)),
-      ) as TFile[];
+      );
     if (!photos.length) {
       new Notice("库里没有可扫描的 JPG（iPhone 若用 HEIC 格式，需先在相机设置里改为「兼容性最佳」才会写 JPEG）");
       return;
@@ -57,7 +57,7 @@ export class PhotoFootprintCommand {
       for (const ds of datasets) {
         const hit = findCityFeature(ds, lng, lat);
         if (!hit) continue;
-        return (hit.properties as { name?: string })?.name ?? null;
+        return hit.properties?.name ?? null;
       }
       return null; // 照片不落世界库（避免误报），报告里归"域外"
     };
@@ -80,7 +80,7 @@ export class PhotoFootprintCommand {
       done++;
       if (done % 200 === 0 || done === photos.length) {
         progress.setMessage(`扫描 ${done}/${photos.length} 张…`);
-        await new Promise((r) => setTimeout(r, 0));
+        await new Promise((r) => window.setTimeout(r, 0));
       }
     }
     progress.hide();

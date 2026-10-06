@@ -1,6 +1,6 @@
 import { distanceKm } from "../util/Geo";
 import { sniffDelimiter, tokenizeCsv } from "../util/Csv";
-import { findCityFeature, pointInFeature, type AdminGeoJson, type AdminFeature } from "../map/GeoJsonLoader";
+import { findCityFeature, type AdminGeoJson } from "../map/GeoJsonLoader";
 import { douglasPeucker, interpolateGaps } from "./TrackClean";
 
 /** 一个 GPS 打点（时间戳已归一为毫秒；acc/speed/alt 为 CSV 提供时直接携带，供行程识别使用） */

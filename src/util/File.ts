@@ -24,10 +24,12 @@ export function num(v: unknown): number {
   return Number.isFinite(n) ? n : 0;
 }
 
-/** Coerce an unknown value into a string with a fallback. */
+/** Coerce an unknown value into a string with a fallback. Objects fall back (never "[object Object]"). */
 export function str(v: unknown, fallback = ""): string {
-  if (v === null || v === undefined) return fallback;
-  return String(v);
+  if (typeof v === "string") return v;
+  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (v instanceof Date) return v.toISOString();
+  return fallback;
 }
 
 /** Coerce an unknown value into a list of non-empty strings. */
@@ -42,5 +44,5 @@ export function todayISO(): string {
 
 /** Resolve after `ms` milliseconds (used to respect geocoder rate limits). */
 export function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }

@@ -154,12 +154,8 @@ export class AtlasDashboard {
         // 点击展开：全部城市（已去高亮）+ 邻近未去推荐
         if (it.allNames.length) {
           const detail = row.createDiv("atlas-coverage-detail");
-          detail.style.display = "none";
           row.addClass("atlas-coverage-clickable");
-          row.onclick = () => {
-            const open = detail.style.display !== "none";
-            detail.style.display = open ? "none" : "";
-          };
+          row.onclick = () => detail.toggleClass("is-open", !detail.hasClass("is-open"));
           const chips = detail.createDiv("atlas-coverage-chips");
           for (const { name, visited } of it.allNames) {
             chips.createSpan({
@@ -196,7 +192,9 @@ export class AtlasDashboard {
       const btn = row.createEl("button", { text: "创建并定位", cls: "atlas-locate-btn" });
       btn.onclick = (e) => {
         e.stopPropagation();
-        new AddCityCommand(this.plugin).run(null, s.name, (city) => this.onLocate(city));
+        void new AddCityCommand(this.plugin).run(null, s.name, (city) => {
+          this.onLocate(city);
+        });
       };
     }
   }

@@ -1,5 +1,5 @@
 import type { FeatureCollection, Feature, Geometry } from "geojson";
-import type { App } from "obsidian";
+import { pluginDataPath, vaultAdapter } from "../util/DataPath";
 
 /** 行政区划级别 */
 export type AdminLevel = "country" | "admin1" | "admin2";
@@ -27,23 +27,13 @@ export type AdminGeoJson = FeatureCollection<Geometry, AdminProperties>;
 /** 数据缓存 */
 const geoJsonCache = new Map<string, AdminGeoJson>();
 
-/** 插件文件路径 */
-const PLUGIN_DATA_PATH = ".obsidian/plugins/atlas_v3/data";
-
-/** App 实例引用 */
-let appInstance: App | null = null;
-
-export function setApp(app: App): void {
-  appInstance = app;
-}
-
 /**
  * 使用 Obsidian vault adapter 读取文件
  */
 async function readVaultFile(path: string): Promise<string | null> {
   try {
-    if (appInstance?.vault?.adapter) {
-      const adapter = appInstance.vault.adapter;
+    const adapter = vaultAdapter();
+    if (adapter) {
       const exists = await adapter.exists(path);
       if (exists) {
         return await adapter.read(path);
@@ -76,16 +66,16 @@ export async function loadAdminGeoJson(
   let filePath: string;
   switch (level) {
     case "country":
-      filePath = `${PLUGIN_DATA_PATH}/countries.geojson`;
+      filePath = `${pluginDataPath()}/countries.geojson`;
       break;
     case "admin1":
-      filePath = `${PLUGIN_DATA_PATH}/admin1${lod === "lo" ? ".lo" : ""}.geojson`;
+      filePath = `${pluginDataPath()}/admin1${lod === "lo" ? ".lo" : ""}.geojson`;
       break;
     case "admin2":
       if (!countryIso3 || countryIso3 === "CHN") {
-        filePath = `${PLUGIN_DATA_PATH}/admin2/china_admin2${lod === "lo" ? ".lo" : ""}.geojson`;
+        filePath = `${pluginDataPath()}/admin2/china_admin2${lod === "lo" ? ".lo" : ""}.geojson`;
       } else {
-        filePath = `${PLUGIN_DATA_PATH}/admin2/${countryIso3.toLowerCase()}_admin2${lod === "lo" ? ".lo" : ""}.geojson`;
+        filePath = `${pluginDataPath()}/admin2/${countryIso3.toLowerCase()}_admin2${lod === "lo" ? ".lo" : ""}.geojson`;
       }
       break;
     default:
@@ -100,7 +90,7 @@ export async function loadAdminGeoJson(
   
   try {
     if (text) {
-      const data: AdminGeoJson = JSON.parse(text);
+      const data = JSON.parse(text) as AdminGeoJson;
       normalizeFeatures(data, level);
       geoJsonCache.set(cacheKey, data);
       return data;
@@ -115,15 +105,41 @@ export async function loadAdminGeoJson(
 }
 
 /**
+ * 三个来源（Natural Earth 国家/省级、DataV/GADM 市级）的原始属性字段，
+ * 全部可选 —— normalizeFeatures 只做字段归一，不做来源假设。
+ */
+interface RawAdminProps {
+  name?: string;
+  NAME?: string;
+  NAME_LONG?: string;
+  ADMIN?: string;
+  NAME_ZH?: string;
+  name_zh?: string;
+  name_local?: string;
+  nameLocal?: string;
+  ISO_A3?: string;
+  ADM0_A3?: string;
+  adm0_a3?: string;
+  sov_a3?: string;
+  iso_a2?: string;
+  adm1_code?: string;
+  adcode?: number;
+  parent?: { name?: string; adcode?: number; code?: string | number };
+  center?: [number, number];
+  centroid?: [number, number];
+  childrenNum?: number;
+}
+
+/**
  * 标准化属性字段
  */
 function normalizeFeatures(geoJson: AdminGeoJson, level: AdminLevel): void {
   for (const feature of geoJson.features) {
-    const rawProps = feature.properties as any;
+    const rawProps = feature.properties as RawAdminProps | null;
     if (!rawProps) continue;
 
     // 跳过 CRS 元数据
-    if (rawProps.name === 'urn:ogc:def:crs:OGC:1.3:CRS84' || 
+    if (rawProps.name === 'urn:ogc:def:crs:OGC:1.3:CRS84' ||
         rawProps.name?.startsWith('ne_')) {
       continue;
     }
@@ -153,7 +169,7 @@ function normalizeFeatures(geoJson: AdminGeoJson, level: AdminLevel): void {
         [rawProps.ISO_A3, rawProps.ADM0_A3, rawProps.adm0_a3, rawProps.sov_a3, rawProps.iso_a2].find(
           (v) => isValidIso3(v),
         ) || undefined,
-      adminCode: rawProps.adm1_code || rawProps.adcode || undefined,
+      adminCode: rawProps.adm1_code || (rawProps.adcode ? String(rawProps.adcode) : undefined),
       adcode: rawProps.adcode || undefined,
       level: level,
       parent: rawProps.parent ? {
@@ -180,7 +196,7 @@ export function getCentroid(feature: AdminFeature): [number, number] | null {
 }
 
 function computeCentroid(feature: AdminFeature): [number, number] | null {
-  const props = feature.properties as AdminProperties;
+  const props = feature.properties;
   if (props?.centroid) return props.centroid;
   if (props?.center) return props.center;
 
@@ -397,10 +413,11 @@ const ADMIN2_PREFIX_ISO3: Record<string, string> = {
 /** 扫描 data/admin2/ 下实际存在的市级数据文件，返回可用的 ISO3 列表。
  *  注意必须用 adapter.list —— vault.getFiles() 不索引 .obsidian/ 目录 */
 export async function availableAdmin2Iso3(): Promise<string[]> {
-  if (!appInstance?.vault?.adapter) return [];
+  const adapter = vaultAdapter();
+  if (!adapter) return [];
   try {
-    const dir = `${PLUGIN_DATA_PATH}/admin2`;
-    const listed = await appInstance.vault.adapter.list(dir);
+    const dir = `${pluginDataPath()}/admin2`;
+    const listed = await adapter.list(dir);
     const out = new Set<string>();
     for (const full of listed.files) {
       const name = full.split("/").pop() ?? "";

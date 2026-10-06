@@ -212,6 +212,8 @@
 }
 
 /* 覆盖率展开明细 */
+.atlas-coverage-detail { display: none; }
+.atlas-coverage-detail.is-open { display: block; }
 .atlas-coverage-clickable { cursor: pointer; }
 .atlas-coverage-hint { font-size: 10px; opacity: 0.6; }
 .atlas-coverage-sub {
@@ -333,7 +335,12 @@
   .atlas-detail { display: none; }
 }
 
-.is-hidden { display: none !important; }
+/* 隐藏开关：限定容器提高特异性，免 !important 即可压过主题与基础 display 规则 */
+.atlas-map-pane.is-hidden,
+.atlas-dashboard.is-hidden,
+.atlas-modal .is-hidden {
+  display: none;
+}
 
 /* ===== Leaflet core styles ===== */
 .leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-container,.leaflet-map-pane svg,.leaflet-map-pane canvas,.leaflet-zoom-box,.leaflet-image-layer,.leaflet-layer{position:absolute;left:0;top:0}
@@ -344,7 +351,9 @@
 .leaflet-zoom-animated{transform-origin:0 0}
 .leaflet-zoom-anim .leaflet-zoom-animated{transition:transform .25s cubic-bezier(0,0,.25,1)}
 .leaflet-zoom-anim .leaflet-tile,.leaflet-pan-anim .leaflet-tile{transition:none}
-.leaflet-container img{max-width:none!important}
+.atlas-map .leaflet-container img{max-width:none}
+/* 弹窗层级保底：双类特异性压过 Leaflet 默认的 700（原 !important 规则的等价替代） */
+.leaflet-pane.leaflet-popup-pane { z-index: 800; }
 .leaflet-control{position:relative;z-index:800;pointer-events:auto;float:left;clear:both}
 .leaflet-top,.leaflet-bottom{position:absolute;z-index:1000;pointer-events:none}
 .leaflet-top{top:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}.leaflet-right{right:0}
@@ -589,11 +598,6 @@
   color: #e8590c;
   font-weight: 600;
   font-size: 12px;
-}
-
-/* 弹窗层级保底：确保详情卡永远盖过地名标签（防主题样式干扰 pane 层级） */
-.leaflet-popup-pane {
-  z-index: 800 !important;
 }
 
 /* 到访过的城市：点亮语义的暖金标签（与点亮区域配色呼应） */

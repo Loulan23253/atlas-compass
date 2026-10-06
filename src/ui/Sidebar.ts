@@ -117,15 +117,15 @@ export class AtlasSidebar {
   private applyActive(): void {
     if (!this.listEl) return;
     const key = this.activeKey;
-    this.listEl.querySelectorAll(".atlas-city-item").forEach((el) => {
-      el.toggleClass("is-active", !!key && el instanceof HTMLElement && el.dataset.key === key);
+    this.listEl.querySelectorAll<HTMLElement>(".atlas-city-item").forEach((el) => {
+      el.toggleClass("is-active", !!key && el.dataset.key === key);
     });
   }
 
   /** Set the search term from outside (e.g. clicking a country on the dashboard). */
   setSearch(term: string): void {
     this.search = term.trim().toLowerCase();
-    const input = this.el.querySelector("input.atlas-search-input") as HTMLInputElement | null;
+    const input = this.el.querySelector<HTMLInputElement>("input.atlas-search-input");
     if (input) input.value = this.search;
     this.renderList();
   }

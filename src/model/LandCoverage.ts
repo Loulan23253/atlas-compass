@@ -5,8 +5,8 @@
  */
 
 import { geohashEncode } from "./WorldCityIndex";
+import { pluginDataPath } from "../util/DataPath";
 
-const PLUGIN_DATA_PATH = ".obsidian/plugins/atlas_v3/data";
 
 let chinaCells: Set<string> | null = null;
 let loading: Promise<Set<string>> | null = null;
@@ -16,7 +16,7 @@ export function loadChinaCells(readText: (path: string) => Promise<string | null
   if (chinaCells) return Promise.resolve(chinaCells);
   if (loading) return loading;
   loading = (async () => {
-    const text = await readText(`${PLUGIN_DATA_PATH}/chinacells.txt`);
+    const text = await readText(`${pluginDataPath()}/chinacells.txt`);
     const set = new Set<string>();
     if (text) {
       // 文件为 5 字符编码首尾相接的纯串

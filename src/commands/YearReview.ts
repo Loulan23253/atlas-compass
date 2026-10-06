@@ -41,7 +41,7 @@ export class YearReviewCommand {
     const totalVisits = rows.reduce((n, r) => n + inYearCount(r.dates, year), 0);
 
     // 月度分布
-    const months = new Array(12).fill(0);
+    const months: number[] = new Array<number>(12).fill(0);
     for (const r of rows) for (const d of r.dates) if (d.startsWith(year)) months[Number(d.slice(5, 7)) - 1]++;
 
     // 排行：按当年到访次数

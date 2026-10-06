@@ -10,7 +10,7 @@ import { YearReviewCommand } from "./commands/YearReview";
 import { ImportHistoryModal, TrackFilePickerModal } from "./commands/TrackTools";
 import { TripsCommand } from "./commands/Trips";
 import { PhotoFootprintCommand } from "./commands/Photos";
-import { setApp } from "./map/GeoJsonLoader";
+import { setDataRoot } from "./util/DataPath";
 
 export default class AtlasPlugin extends Plugin {
   settings: AtlasSettings = DEFAULT_SETTINGS;
@@ -19,10 +19,11 @@ export default class AtlasPlugin extends Plugin {
   private suppressScan = 0;
 
   async onload(): Promise<void> {
-    // 初始化 GeoJsonLoader 的 App 实例
-    setApp(this.app);
-    
-    this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+    // 注入 App 与插件安装目录（data/ 资源按 manifest.dir 定位，禁止硬编码 .obsidian）
+    setDataRoot(this.app, this.manifest.dir);
+
+    const loaded = (await this.loadData()) as Partial<AtlasSettings> | null;
+    this.settings = { ...DEFAULT_SETTINGS, ...loaded };
     this.db = new AtlasDB(this.app, this.settings);
 
     this.registerView(VIEW_TYPE_ATLAS, (leaf) => new AtlasView(leaf, this));

@@ -224,8 +224,8 @@ export class AtlasMap {
       console.error("Atlas: initial render failed:", e);
     }
     this.invalidate();
-    setTimeout(() => this.invalidate(), 300);
-    setTimeout(() => this.invalidate(), 1000);
+    window.setTimeout(() => this.invalidate(), 300);
+    window.setTimeout(() => this.invalidate(), 1000);
   }
 
   private addOceanBackground(): void {
@@ -241,8 +241,8 @@ export class AtlasMap {
   private addControls(): void {
     const fit = new L.Control({ position: "topright" });
     fit.onAdd = () => {
-      const btn = L.DomUtil.create("button", "atlas-fit-btn") as HTMLButtonElement;
-      btn.type = "button";
+      const btn = L.DomUtil.create("button", "atlas-fit-btn");
+      btn.setAttribute("type", "button");
       btn.title = "显示全部";
       btn.textContent = "⌖";
       L.DomEvent.disableClickPropagation(btn);
@@ -253,8 +253,8 @@ export class AtlasMap {
 
     const routeToggle = new L.Control({ position: "topleft" });
     routeToggle.onAdd = () => {
-      const btn = L.DomUtil.create("button", "atlas-route-btn") as HTMLButtonElement;
-      btn.type = "button";
+      const btn = L.DomUtil.create("button", "atlas-route-btn");
+      btn.setAttribute("type", "button");
       btn.title = "显示/隐藏旅行路线";
       btn.textContent = "➤";
       L.DomEvent.disableClickPropagation(btn);
@@ -269,8 +269,8 @@ export class AtlasMap {
 
     const trackToggle = new L.Control({ position: "topleft" });
     trackToggle.onAdd = () => {
-      const btn = L.DomUtil.create("button", "atlas-route-btn atlas-track-btn") as HTMLButtonElement;
-      btn.type = "button";
+      const btn = L.DomUtil.create("button", "atlas-route-btn atlas-track-btn");
+      btn.setAttribute("type", "button");
       btn.title = "显示/隐藏 GPS 轨迹（Travel/轨迹/）";
       btn.textContent = "GPS";
       L.DomEvent.disableClickPropagation(btn);
@@ -286,8 +286,8 @@ export class AtlasMap {
 
     const airportToggle = new L.Control({ position: "topleft" });
     airportToggle.onAdd = () => {
-      const btn = L.DomUtil.create("button", "atlas-route-btn atlas-airport-btn") as HTMLButtonElement;
-      btn.type = "button";
+      const btn = L.DomUtil.create("button", "atlas-route-btn atlas-airport-btn");
+      btn.setAttribute("type", "button");
       btn.title = "显示/隐藏常用机场";
       btn.textContent = "✈";
       L.DomEvent.disableClickPropagation(btn);
@@ -302,8 +302,8 @@ export class AtlasMap {
 
     const coverageToggle = new L.Control({ position: "topleft" });
     coverageToggle.onAdd = () => {
-      const btn = L.DomUtil.create("button", "atlas-route-btn atlas-coverage-btn") as HTMLButtonElement;
-      btn.type = "button";
+      const btn = L.DomUtil.create("button", "atlas-route-btn atlas-coverage-btn");
+      btn.setAttribute("type", "button");
       btn.title = "显示/隐藏国土覆盖率格点（导入轨迹后可用）";
       btn.textContent = "格";
       L.DomEvent.disableClickPropagation(btn);
@@ -418,7 +418,7 @@ export class AtlasMap {
           .setTitle(`${lat.toFixed(4)}, ${lng.toFixed(4)}`)
           .setIcon("copy")
           .onClick(() => {
-            navigator.clipboard.writeText(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+            void navigator.clipboard.writeText(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
             new Notice("坐标已复制到剪贴板");
           }),
       );
@@ -435,23 +435,23 @@ export class AtlasMap {
     const countries = this.geoJsonData.get("country");
     const byIso = new Map<string, string>();
     if (countries) {
-      for (const f of countries.features as AdminFeature[]) {
-        const p = f.properties as AdminProperties | undefined;
+      for (const f of countries.features) {
+        const p = f.properties;
         if (p?.iso3 && !byIso.has(p.iso3)) byIso.set(p.iso3, p.nameLocal || p.name || p.iso3);
       }
     }
     const nameOf = (iso3: string): string => ISO3_ZH_FALLBACK[iso3] ?? byIso.get(iso3) ?? iso3;
 
     for (const [iso3, geo] of this.admin2Sets) {
-      for (const f of geo.features as AdminFeature[]) {
+      for (const f of geo.features) {
         if (!pointInFeature(lng, lat, f)) continue;
-        const name = (f.properties as AdminProperties)?.name;
+        const name = f.properties?.name;
         return { city: name || undefined, country: nameOf(iso3) };
       }
     }
-    for (const f of (countries?.features ?? []) as AdminFeature[]) {
+    for (const f of countries?.features ?? []) {
       if (!pointInFeature(lng, lat, f)) continue;
-      const p = f.properties as AdminProperties | undefined;
+      const p = f.properties;
       if (isValidIso3(p?.iso3)) return { country: nameOf(p.iso3) };
     }
     return { country: "" };
@@ -459,8 +459,9 @@ export class AtlasMap {
 
   private showAddCityModal(lat: number, lng: number): void {
     const region = this.reverseLocate(lat, lng);
-    const modal = new AddCityModal(this.plugin, lat, lng, async (city) => {
-      try {
+    const modal = new AddCityModal(this.plugin, lat, lng, (city) => {
+      void (async () => {
+        try {
         // 创建文件路径
         const travelFolder = this.plugin.settings.travelFolder || "Travel";
         const folder = `${travelFolder}/${city.country}`;
@@ -482,7 +483,7 @@ export class AtlasMap {
         await this.plugin.app.vault.create(path, content);
         
         // 等待文件系统同步
-        await new Promise(resolve => setTimeout(resolve, 200));
+        await new Promise((resolve) => window.setTimeout(resolve, 200));
         
         // 刷新数据库
         await this.plugin.db.scan();
@@ -495,6 +496,7 @@ export class AtlasMap {
         console.error("Atlas: Failed to create city:", e);
         new Notice(`创建城市失败: ${(e as Error).message}`);
       }
+      })();
     }, region);
     modal.open();
   }
@@ -559,7 +561,7 @@ export class AtlasMap {
   }
 
   private computeIsLit(feature: AdminFeature, level: RenderLevel): boolean {
-    const props = feature.properties as AdminProperties | undefined;
+    const props = feature.properties;
     if (!props) return false;
 
     if (level === "admin2") {
@@ -767,7 +769,7 @@ export class AtlasMap {
     const north = bounds.getNorth();
     const candidates: Array<{ display: string; latLng: L.LatLng; visits: number }> = [];
     for (const feature of data.features) {
-      const props = feature.properties as AdminProperties;
+      const props = feature.properties;
       if (!props?.name) continue;
       // bbox 快筛：质心必在要素 bbox 内，bbox 与视口不相交则不可能成为候选，
       // 省去逐要素的质心计算（质心有 WeakMap 缓存，bbox 同样只算一次）
@@ -824,7 +826,7 @@ export class AtlasMap {
   }
 
   private setupFeatureInteraction(feature: AdminFeature, layer: L.Layer, level: string): void {
-    const props = feature.properties as AdminProperties;
+    const props = feature.properties;
     if (!props) return;
 
     // 初始样式建层时算好并缓存（styleFor → isLit 已按要素记忆，这里只多一次查表）：
@@ -1152,7 +1154,7 @@ export class AtlasMap {
           weight: inferred ? 2 : 3,
           opacity: inferred ? 0.3 : 0.55,
           dashArray: inferred ? "4 8" : undefined,
-          renderer: this.trackRenderer as L.SVG,
+          renderer: this.trackRenderer,
         }).addTo(layer);
         // 方式分色：properties.segments（起止秒）+ ts（坐标时间戳）→ 逐段上色
         const segs = feat.properties?.segments;
@@ -1168,7 +1170,7 @@ export class AtlasMap {
                 color: MODE_COLORS[seg.m] ?? color,
                 weight: 3.5,
                 opacity: 0.9,
-                renderer: this.trackRenderer as L.SVG,
+                renderer: this.trackRenderer,
               }).addTo(layer);
             }
           }
@@ -1204,7 +1206,7 @@ export class AtlasMap {
     const folder = `${this.plugin.settings.travelFolder}/轨迹/`;
     const files = this.plugin.app.vault
       .getFiles()
-      .filter((f) => f instanceof TFile && f.path.startsWith(folder) && f.extension === "geojson") as TFile[];
+      .filter((f) => f instanceof TFile && f.path.startsWith(folder) && f.extension === "geojson");
     if (!files.length) {
       if (this.coverageLayer) {
         this.coverageLayer.remove();
@@ -1397,7 +1399,7 @@ export class AtlasMap {
   }
 
   showStatus(text: string): void {
-    let el = this.container.querySelector(".atlas-map-status") as HTMLElement | null;
+    let el = this.container.querySelector<HTMLElement>(".atlas-map-status");
     if (!el) el = this.container.createDiv("atlas-map-status");
     el.textContent = text;
     window.setTimeout(() => {
@@ -1466,12 +1468,12 @@ class AddCityModal extends Modal {
 
     // 坐标显示 + 自动识别结果
     const coordDiv = contentEl.createDiv("atlas-modal-coord");
-    coordDiv.createEl("span", { text: `坐标: ${this.lat.toFixed(4)}, ${this.lng.toFixed(4)}` });
+    coordDiv.createSpan({ text: `坐标: ${this.lat.toFixed(4)}, ${this.lng.toFixed(4)}` });
     if (this.prefill.country) {
       const where = this.prefill.city
         ? `${this.prefill.country} · ${this.prefill.city}`
         : this.prefill.country;
-      coordDiv.createEl("div", {
+      coordDiv.createDiv({
         cls: "atlas-modal-region",
         text: `已识别：${where}`,
       });
