@@ -33,9 +33,7 @@ export class CityModal extends Modal {
       value: string,
       disabled = false,
     ): HTMLInputElement => {
-      const i = c.createEl("input", { type: "text", placeholder, value });
-      i.style.width = "100%";
-      i.style.marginBottom = "8px";
+      const i = c.createEl("input", { type: "text", placeholder, value, cls: "atlas-modal-input" });
       i.disabled = disabled;
       return i;
     };
@@ -55,10 +53,8 @@ export class CityModal extends Modal {
     const lat = input("纬度，如 35.6762", this.edit ? String(this.edit.lat || "") : "");
     const lng = input("经度，如 139.6503", this.edit ? String(this.edit.lng || "") : "");
 
-    const row = c.createDiv();
-    row.style.textAlign = "right";
-    const cancel = row.createEl("button", { text: "取消" });
-    cancel.style.marginRight = "8px";
+    const row = c.createDiv("atlas-modal-btn-row");
+    const cancel = row.createEl("button", { text: "取消", cls: "atlas-modal-btn-gap" });
     cancel.onclick = () => this.close();
 
     const ok = row.createEl("button", { text: this.edit ? "保存" : "添加", cls: "mod-cta" });
@@ -96,52 +92,61 @@ export class AddCityCommand {
   async run(edit: City | null = null, presetName?: string, onCreated?: (city: City) => void): Promise<void> {
     new CityModal(
       this.plugin,
-      async (d) => {
-        const folder = `${this.plugin.settings.travelFolder}/${d.country}`;
-        const path = `${folder}/${d.name}.md`;
-
-        if (edit) {
-          const old = this.plugin.app.vault.getAbstractFileByPath(edit.note);
-          if (old && (d.name !== edit.name || d.country !== edit.country)) {
-            await ensureFolder(this.plugin.app, folder);
-            const target = this.plugin.app.vault.getAbstractFileByPath(path);
-            if (target && target.path !== edit.note) {
-              new Notice("目标位置已存在同名笔记");
-              return;
-            }
-            await this.plugin.app.fileManager.renameFile(old, path);
-          }
-          const file = this.plugin.app.vault.getAbstractFileByPath(path) as TFile | null;
-          if (file) {
-            await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
-              fm.name = d.name;
-              fm.country = d.country;
-              fm.lat = d.lat;
-              fm.lng = d.lng;
-              fm.type = "city";
-            });
-          }
-        } else {
-          if (this.plugin.app.vault.getAbstractFileByPath(path)) {
-            new Notice("该城市已存在");
-            return;
-          }
-          await ensureFolder(this.plugin.app, folder);
-          await this.plugin.app.vault.create(path, cityTemplate(d.name, d.country, d.lat, d.lng));
-        }
-
-        await this.plugin.db.scan();
-        this.plugin.refreshViews();
-        new Notice(edit ? `已更新 ${d.name}` : `已添加 ${d.name}`);
-        if (onCreated && !edit) {
-          const created =
-            this.plugin.db.cities.find((c) => c.note === path) ??
-            this.plugin.db.places.find((c) => c.note === path);
-          if (created) onCreated(created);
-        }
+      (d) => {
+        void this.applyCity(d, edit, onCreated);
       },
       edit,
       presetName,
     ).open();
+  }
+
+  /** Modal submit 回调的异步实现（回调类型期望 void，用 void 操作符触发） */
+  private async applyCity(
+    d: { name: string; country: string; lat: number; lng: number },
+    edit: City | null,
+    onCreated?: (city: City) => void,
+  ): Promise<void> {
+    const folder = `${this.plugin.settings.travelFolder}/${d.country}`;
+    const path = `${folder}/${d.name}.md`;
+
+    if (edit) {
+      const old = this.plugin.app.vault.getAbstractFileByPath(edit.note);
+      if (old && (d.name !== edit.name || d.country !== edit.country)) {
+        await ensureFolder(this.plugin.app, folder);
+        const target = this.plugin.app.vault.getAbstractFileByPath(path);
+        if (target && target.path !== edit.note) {
+          new Notice("目标位置已存在同名笔记");
+          return;
+        }
+        await this.plugin.app.fileManager.renameFile(old, path);
+      }
+      const file = this.plugin.app.vault.getAbstractFileByPath(path) as TFile | null;
+      if (file) {
+        await this.plugin.app.fileManager.processFrontMatter(file, (fm) => {
+          fm.name = d.name;
+          fm.country = d.country;
+          fm.lat = d.lat;
+          fm.lng = d.lng;
+          fm.type = "city";
+        });
+      }
+    } else {
+      if (this.plugin.app.vault.getAbstractFileByPath(path)) {
+        new Notice("该城市已存在");
+        return;
+      }
+      await ensureFolder(this.plugin.app, folder);
+      await this.plugin.app.vault.create(path, cityTemplate(d.name, d.country, d.lat, d.lng));
+    }
+
+    await this.plugin.db.scan();
+    this.plugin.refreshViews();
+    new Notice(edit ? `已更新 ${d.name}` : `已添加 ${d.name}`);
+    if (onCreated && !edit) {
+      const created =
+        this.plugin.db.cities.find((c) => c.note === path) ??
+        this.plugin.db.places.find((c) => c.note === path);
+      if (created) onCreated(created);
+    }
   }
 }

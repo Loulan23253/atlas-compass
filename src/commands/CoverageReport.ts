@@ -16,7 +16,7 @@ export async function readTrackDayProps(
   const folder = `${plugin.settings.travelFolder}/轨迹/`;
   const files = plugin.app.vault
     .getFiles()
-    .filter((f) => f instanceof TFile && f.path.startsWith(folder) && f.extension === "geojson") as TFile[];
+    .filter((f) => f instanceof TFile && f.path.startsWith(folder) && f.extension === "geojson");
   const out = new Map<string, Record<string, unknown>>();
   for (const f of files) {
     try {

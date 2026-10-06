@@ -1,3 +1,21 @@
+# Atlas — Geographic Knowledge System for Obsidian
+
+A fully offline geographic knowledge system for [Obsidian](https://obsidian.md).
+
+- **Offline vector map** — country, province, and city boundaries (China, Japan, and world)
+- **GPS track import** — CSV / GPX with automatic trip recognition and transport classification (walk / bike / car / HSR / metro / train)
+- **Visit determination** — cumulative dwell or cluster-based stay detection
+- **Land coverage grid** — 494,312 cells across China, rendered as an interactive map
+- **Trip notes** — auto-generated with emoji transport icons, daily stats, and altitude profiles
+- **Coverage map SVG** — your footprints drawn on a China outline
+- **Year in review** — rankings, monthly distribution, new cities
+- **34,149 city geocoding fallback** (GeoNames) — worldwide city attribution
+- **131 airports** with Chinese names
+
+> The README below is primarily in Chinese. English documentation is planned.
+
+---
+
 # Atlas - 旅行地图插件
 
 一个功能强大的 Obsidian 旅行地图插件，支持**完全离线**的世界地图和中国、日本的市级行政区划。

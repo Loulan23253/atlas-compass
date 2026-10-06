@@ -87,16 +87,13 @@ export class ImportModal extends Modal {
         "访问次数、访问日期（多个用 | 分隔）、最近访问、备注、类型（city/place）。名称与国家为必填。",
     });
 
-    const pick = contentEl.createDiv();
-    pick.style.display = "flex";
-    pick.style.gap = "8px";
-    pick.style.marginBottom = "12px";
+    const pick = contentEl.createDiv("atlas-import-pick-row");
 
     const fileInput = contentEl.createEl("input", {
       type: "file",
+      cls: "atlas-import-file-input",
       attr: { accept: ".csv,.tsv,.tab,.json,.gpx,text/csv,application/json,application/gpx+xml" },
     });
-    fileInput.style.display = "none";
 
     const sysBtn = pick.createEl("button", { text: "从电脑选择文件", cls: "mod-cta" });
     sysBtn.onclick = () => fileInput.click();
@@ -121,17 +118,15 @@ export class ImportModal extends Modal {
     this.statusEl = contentEl.createDiv("atlas-import-status");
     this.previewEl = contentEl.createDiv();
 
-    // 城市列表模式选项
-    this.cityOptsEl = contentEl.createDiv();
-    this.cityOptsEl.style.display = "none";
+    // 城市列表模式选项（默认隐藏，解析出城市行后才显示）
+    this.cityOptsEl = contentEl.createDiv("is-hidden");
     new Setting(this.cityOptsEl)
       .setName("为已有城市补充坐标")
       .setDesc("导入文件里的已有城市若缺少经纬度，用文件中的坐标补上")
       .addToggle((t) => t.setValue(false).onChange((v) => (this.updateExisting = v)));
 
-    // GPS 轨迹模式选项
-    this.gpsOptsEl = contentEl.createDiv();
-    this.gpsOptsEl.style.display = "none";
+    // GPS 轨迹模式选项（默认隐藏，识别为轨迹后才显示）
+    this.gpsOptsEl = contentEl.createDiv("is-hidden");
     new Setting(this.gpsOptsEl)
       .setName("保存轨迹文件")
       .setDesc(`按天保存为 GeoJSON（${this.plugin.settings.travelFolder}/轨迹/日期.geojson），地图上可开关显示`)
@@ -145,8 +140,7 @@ export class ImportModal extends Modal {
       .setDesc("反查到的城市若没有笔记，自动在 Travel/中国/ 下创建（仅开启上一项时生效）")
       .addToggle((t) => t.setValue(false).onChange((v) => (this.gpsAutoCreate = v)));
 
-    const btnRow = contentEl.createDiv();
-    btnRow.style.textAlign = "right";
+    const btnRow = contentEl.createDiv("atlas-modal-btn-row");
     this.importBtn = btnRow.createEl("button", { text: "开始导入", cls: "mod-cta" });
     this.importBtn.disabled = true;
     this.importBtn.onclick = () => void this.runImport();
@@ -176,8 +170,8 @@ export class ImportModal extends Modal {
     } catch (e) {
       this.statusEl.setText(`解析失败：${(e as Error).message}`);
       this.previewEl.empty();
-      this.cityOptsEl.style.display = "none";
-      this.gpsOptsEl.style.display = "none";
+      this.setCityOptionsVisible(false);
+      this.setGpsOptionsVisible(false);
       this.importBtn.disabled = true;
       return;
     }
@@ -185,8 +179,8 @@ export class ImportModal extends Modal {
     if (!this.rows.length) {
       this.statusEl.setText(`「${fileName}」中没有可导入的城市`);
       this.previewEl.empty();
-      this.cityOptsEl.style.display = "none";
-      this.gpsOptsEl.style.display = "none";
+      this.setCityOptionsVisible(false);
+      this.setGpsOptionsVisible(false);
       this.importBtn.disabled = true;
       return;
     }
@@ -208,8 +202,8 @@ export class ImportModal extends Modal {
       list.createDiv({ cls: "atlas-muted", text: `… 等共 ${this.rows.length} 行` });
     }
 
-    this.gpsOptsEl.style.display = "none";
-    this.cityOptsEl.style.display = existing ? "" : "none";
+    this.setGpsOptionsVisible(false);
+    this.setCityOptionsVisible(existing > 0);
     this.importBtn.disabled = false;
     this.importBtn.onclick = () => void this.runImport();
   }
@@ -222,8 +216,8 @@ export class ImportModal extends Modal {
     if (!points.length) {
       this.statusEl.setText(`「${this.fileName}」中没有解析到有效的 GPS 点`);
       this.previewEl.empty();
-      this.cityOptsEl.style.display = "none";
-      this.gpsOptsEl.style.display = "none";
+      this.setCityOptionsVisible(false);
+      this.setGpsOptionsVisible(false);
       this.importBtn.disabled = true;
       return;
     }
@@ -269,7 +263,7 @@ export class ImportModal extends Modal {
       const visits = analyzeDayVisits(
         d,
         datasets,
-        mode as Parameters<typeof analyzeDayVisits>[2],
+        mode,
         (lat, lng) => resolver({ lat, lng }),
       );
       const visitCities = visits.filter((v) => v.cls === "visit").map((v) => stripSuffix(v.name));
@@ -293,8 +287,8 @@ export class ImportModal extends Modal {
       list.createDiv({ cls: "atlas-muted", text: `… 等共 ${this.gpsDays.length} 天` });
     }
 
-    this.cityOptsEl.style.display = "none";
-    this.gpsOptsEl.style.display = "";
+    this.setCityOptionsVisible(false);
+    this.setGpsOptionsVisible(true);
     this.importBtn.disabled = false;
     this.importBtn.onclick = () => void this.runGpsImport();
   }
@@ -454,7 +448,7 @@ export class ImportModal extends Modal {
         const visits = analyzeDayVisits(
           day,
           datasets,
-          mode as Parameters<typeof analyzeDayVisits>[2],
+          mode,
           (lat, lng) => resolver({ lat, lng }),
         ).filter((v) => v.cls === "visit");
         processed += 1;
@@ -572,6 +566,16 @@ export class ImportModal extends Modal {
 
   onClose(): void {
     this.contentEl.empty();
+  }
+
+  /** 显示/隐藏城市列表模式选项（改用 .is-hidden 类，替代内联 display 赋值） */
+  private setCityOptionsVisible(visible: boolean): void {
+    this.cityOptsEl.classList.toggle("is-hidden", !visible);
+  }
+
+  /** 显示/隐藏 GPS 轨迹模式选项（改用 .is-hidden 类，替代内联 display 赋值） */
+  private setGpsOptionsVisible(visible: boolean): void {
+    this.gpsOptsEl.classList.toggle("is-hidden", !visible);
   }
 }
 
@@ -731,7 +735,7 @@ export async function mergeVisitDates(plugin: AtlasPlugin, notePath: string, dat
   const file = plugin.app.vault.getAbstractFileByPath(notePath);
   if (!(file instanceof TFile)) return false;
   let changed = false;
-  await plugin.app.fileManager.processFrontMatter(file, (fm) => {
+  await plugin.app.fileManager.processFrontMatter(file, (fm: Record<string, unknown>) => {
     const existing = Array.isArray(fm.visitDates)
       ? fm.visitDates.map(String)
       : fm.visitDates
@@ -804,7 +808,7 @@ async function importRows(
         plugin.db.cities.find((c) => c.note === path) ??
         plugin.db.places.find((c) => c.note === path);
       if (updateExisting && city && !hasCoords(city) && (r.lat || r.lng) && existing instanceof TFile) {
-        await plugin.app.fileManager.processFrontMatter(existing, (fm) => {
+        await plugin.app.fileManager.processFrontMatter(existing, (fm: Record<string, unknown>) => {
           fm.lat = r.lat;
           fm.lng = r.lng;
         });

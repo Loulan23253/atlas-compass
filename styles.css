@@ -172,6 +172,17 @@
 .atlas-route-btn:hover { background: var(--background-modifier-hover); }
 .atlas-route-btn.is-off { opacity: 0.45; }
 
+/* 图层开关按钮的文字尺寸（原由 JS 内联 style 指定，迁移到样式表；
+   复合选择器确保压过上方 .atlas-route-btn 的基础字号） */
+.atlas-route-btn.atlas-track-btn,
+.atlas-route-btn.atlas-coverage-btn {
+  font-size: 10px;
+  font-weight: 600;
+}
+.atlas-route-btn.atlas-airport-btn {
+  font-size: 13px;
+}
+
 /* 探索覆盖率 */
 .atlas-coverage-row { margin-bottom: 10px; }
 .atlas-coverage-label { font-size: 12px; margin-bottom: 3px; }
@@ -348,6 +359,12 @@
 .leaflet-popup-close-button{position:absolute;right:0;top:0;padding:4px 4px 0 0;border:0;background:transparent;color:var(--text-muted);font-size:18px}
 .leaflet-control-zoom{border-radius:7px;overflow:hidden}
 
+/* 自定义窗格层级（原由 JS 内联 zIndex 指定，迁移到样式表；
+   双类选择器确保压过 Leaflet 的 .leaflet-pane 基础规则，与原内联值一致） */
+.leaflet-pane.leaflet-atlas-route-pane { z-index: 450; }
+.leaflet-pane.leaflet-atlas-track-pane { z-index: 455; }
+.leaflet-pane.leaflet-atlas-airport-pane { z-index: 460; }
+
 /* ===== Atlas layout stability ===== */
 .atlas-container { min-height: 0; }
 .atlas-container > * { min-height: 0; }
@@ -388,8 +405,8 @@
 
 /* 地区名称标签（原三处重复定义合并为一处；属性取级联后实际生效值） */
 .atlas-label {
-  background: none !important;
-  border: none !important;
+  background: transparent;
+  border: none;
   text-align: center;
   pointer-events: none;
   transition: opacity 0.15s ease;
@@ -663,4 +680,33 @@
 }
 .theme-dark .atlas-trip h2 {
   color: #ced4da;
+}
+
+/* ===== 弹窗内联样式迁移（上架审查：禁止 .style 赋值，样式统一定义在样式表） ===== */
+/* 添加城市/添加国家弹窗的文本输入框 */
+.atlas-modal-input {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+/* 弹窗底部按钮行（右对齐） */
+.atlas-modal-btn-row {
+  text-align: right;
+}
+
+/* 按钮行中非末位按钮的间距（取消按钮） */
+.atlas-modal-btn-gap {
+  margin-right: 8px;
+}
+
+/* 导入弹窗：文件选择按钮行 */
+.atlas-import-pick-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+/* 导入弹窗：隐藏的原生文件输入框 */
+.atlas-import-file-input {
+  display: none;
 }

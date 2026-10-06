@@ -270,7 +270,7 @@ export class AtlasView extends ItemView {
       const yes = b.createEl("button", { text: "删除", cls: "mod-warning" });
       yes.onclick = async () => {
         const f = this.app.vault.getAbstractFileByPath(city.note);
-        if (f) await this.app.vault.trash(f, true);
+        if (f) await this.app.fileManager.trashFile(f);
         modal.close();
         await this.plugin.db.scan();
         this.refresh();

@@ -1,3 +1,5 @@
+import { requestUrl, RequestUrlResponse } from "obsidian";
+
 export interface LatLng {
   lat: number;
   lng: number;
@@ -54,12 +56,11 @@ const geocodeCache = new Map<string, LatLng | null>();
 export async function geocode(
   query: string,
   url: string,
-  timeoutMs = 8000,
 ): Promise<LatLng | null> {
   const base = (url || "https://photon.komoot.io/api").trim();
   const cacheKey = `${base}|${query}`;
   if (geocodeCache.has(cacheKey)) return geocodeCache.get(cacheKey)!;
-  const result = await geocodeFetch(query, base, timeoutMs);
+  const result = await geocodeFetch(query, base);
   geocodeCache.set(cacheKey, result);
   return result;
 }
@@ -67,7 +68,6 @@ export async function geocode(
 async function geocodeFetch(
   query: string,
   base: string,
-  timeoutMs = 8000,
 ): Promise<LatLng | null> {
   let endpoint: URL;
   try {
@@ -82,17 +82,18 @@ async function geocodeFetch(
   endpoint.searchParams.set("limit", "1");
   if (/nominatim/i.test(base)) endpoint.searchParams.set("format", "json");
 
-  let res: Response;
+  let res: RequestUrlResponse;
   try {
-    res = await fetchWithTimeout(endpoint.toString(), timeoutMs);
+    // requestUrl 自带超时；throw: false 让 4xx/5xx 走下面的状态码判断
+    res = await requestUrl({ url: endpoint.toString(), method: "GET", throw: false });
   } catch {
     return null;
   }
-  if (!res.ok) return null;
+  if (res.status < 200 || res.status >= 300) return null;
 
   let data: unknown;
   try {
-    data = await res.json();
+    data = res.json;
   } catch {
     return null;
   }
@@ -123,16 +124,6 @@ function parseGeocodeResponse(data: unknown): LatLng | null {
   return null;
 }
 
-async function fetchWithTimeout(url: string, timeoutMs: number): Promise<Response> {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(url, { signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
 /**
  * Build the list of geocoding queries for a place name.
  * The plain name is only tried when it looks like a Latin place name, to
@@ -142,7 +133,7 @@ export function geocodeQueries(name: string, country: string): string[] {
   const queries: string[] = [];
   const withCountry = [name, country].filter(Boolean).join(", ");
   if (withCountry !== name) queries.push(withCountry);
-  if (/^[A-Za-z0-9 .'\-]+$/.test(name) && /[A-Za-z]/.test(name)) {
+  if (/^[A-Za-z0-9 .'-]+$/.test(name) && /[A-Za-z]/.test(name)) {
     queries.push(name);
   }
   return queries;

@@ -11,6 +11,11 @@ interface SegmentRow {
   m: number;
 }
 
+/** 轨迹 GeoJSON 顶层结构（只需 features[0].properties） */
+interface TrackGeo {
+  features?: Array<{ properties?: Record<string, unknown> }>;
+}
+
 const fmtTime = (sec: number): string => {
   const d = new Date(sec * 1000);
   const p = (n: number) => String(n).padStart(2, "0");
@@ -27,7 +32,7 @@ export class TrackFilePickerModal extends FuzzySuggestModal<TFile> {
     return this.plugin.app.vault
       .getFiles()
       .filter((f) => f instanceof TFile && f.path.startsWith(folder) && f.extension === "geojson")
-      .sort((a, b) => b.basename.localeCompare(a.basename)) as TFile[];
+      .sort((a, b) => b.basename.localeCompare(a.basename));
   }
   getItemText(f: TFile): string {
     return f.basename;
@@ -51,17 +56,15 @@ export class FixTransportModal extends Modal {
   async onOpen(): Promise<void> {
     this.contentEl.empty();
     this.titleEl.setText(`修正行程方式 — ${this.file.basename}`);
-    let geo: {
-      features?: Array<{ properties?: Record<string, unknown> }>;
-    } | null = null;
+    let geo: TrackGeo | null = null;
     try {
-      geo = JSON.parse(await this.plugin.app.vault.adapter.read(this.file.path));
+      geo = JSON.parse(await this.plugin.app.vault.adapter.read(this.file.path)) as TrackGeo | null;
     } catch {
       new Notice("轨迹文件读取失败");
       this.close();
       return;
     }
-    const props = geo?.features?.[0]?.properties as Record<string, unknown> | undefined;
+    const props = geo?.features?.[0]?.properties;
     this.rows = ((props?.segments as SegmentRow[] | undefined) ?? []).map((r) => ({ ...r }));
     if (!this.rows.length) {
       this.contentEl.createEl("p", { text: "该文件没有行程段数据（用「导入」重新跑一遍即会生成）。" });
@@ -93,9 +96,7 @@ export class FixTransportModal extends Modal {
       this.close();
       return;
     }
-    const geo = JSON.parse(await this.plugin.app.vault.adapter.read(this.file.path)) as {
-      features?: Array<{ properties?: Record<string, unknown> }>;
-    };
+    const geo = JSON.parse(await this.plugin.app.vault.adapter.read(this.file.path)) as TrackGeo;
     const props = geo?.features?.[0]?.properties;
     if (!props) return;
     props.segments = this.rows;

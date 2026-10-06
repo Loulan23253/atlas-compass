@@ -24,7 +24,12 @@ export class PhotoFootprintCommand {
   constructor(private plugin: AtlasPlugin) {}
 
   async run(): Promise<void> {
-    const skipPrefixes = [".obsidian", `${this.plugin.settings.travelFolder}/轨迹/`, ".zcode", ".trash"];
+    const skipPrefixes = [
+      this.plugin.app.vault.configDir,
+      `${this.plugin.settings.travelFolder}/轨迹/`,
+      ".zcode",
+      ".trash",
+    ];
     const photos = this.plugin.app.vault
       .getFiles()
       .filter(
@@ -43,7 +48,7 @@ export class PhotoFootprintCommand {
     for (const iso3 of ["CHN", "JPN"]) {
       try {
         const geo = await loadAdminGeoJson("admin2", iso3);
-        if (geo.features.length) datasets.push({ iso3, features: geo.features as AdminFeature[] });
+        if (geo.features.length) datasets.push({ iso3, features: geo.features });
       } catch {
         continue;
       }

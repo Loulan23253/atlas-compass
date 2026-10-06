@@ -179,7 +179,9 @@ export class AtlasDB {
     let total = 0;
     for (const f of trackFiles) {
       try {
-        const geo = JSON.parse(await this.app.vault.adapter.read(f.path));
+        const geo = JSON.parse(await this.app.vault.adapter.read(f.path)) as {
+          features?: Array<{ properties?: { km?: unknown } }>;
+        } | null;
         total += Number(geo?.features?.[0]?.properties?.km) || 0;
       } catch {
         // 单个文件损坏时跳过，不影响其余

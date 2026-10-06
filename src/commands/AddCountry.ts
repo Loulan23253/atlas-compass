@@ -19,15 +19,15 @@ export class CountryModal extends Modal {
       cls: "atlas-muted",
       text: "将创建旅行根目录下的国家文件夹与索引笔记。",
     });
-    const input = c.createEl("input", { type: "text", placeholder: "国家名，如 Japan / 日本" });
-    input.style.width = "100%";
-    input.style.marginBottom = "8px";
+    const input = c.createEl("input", {
+      type: "text",
+      placeholder: "国家名，如 Japan / 日本",
+      cls: "atlas-modal-input",
+    });
     input.focus();
 
-    const row = c.createDiv();
-    row.style.textAlign = "right";
-    const cancel = row.createEl("button", { text: "取消" });
-    cancel.style.marginRight = "8px";
+    const row = c.createDiv("atlas-modal-btn-row");
+    const cancel = row.createEl("button", { text: "取消", cls: "atlas-modal-btn-gap" });
     cancel.onclick = () => this.close();
 
     const ok = row.createEl("button", { text: "添加", cls: "mod-cta" });

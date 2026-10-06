@@ -94,12 +94,25 @@ interface TrackGeoJson {
   }>;
 }
 
+/** 覆盖率层只读 features[].properties.cells，其余字段忽略 */
+type CoverageGeo = { features?: Array<{ properties?: { cells?: string[] } }> };
+
 /** 自动模式下各层级的缩放阈值，与 README 一致：≤4 国家、5-7 省级、≥8 市级 */
 const AUTO_LEVEL = (zoom: number): RenderLevel =>
   zoom <= 4 ? "country" : zoom <= 7 ? "admin1" : "admin2";
 
 /** 视口内最多同时显示的名称标签数（防止低层级下标签铺满屏幕） */
 const MAX_LABELS = 150;
+
+/** 点击选中时缓存在行政区划要素层实例上的元数据（避免 as any 存取） */
+interface AtlasLayerMeta {
+  _atlasStyle?: L.PathOptions;
+  _atlasLevel?: string;
+  _atlasFeature?: AdminFeature;
+}
+
+/** 带元数据的行政区划要素层 */
+type AtlasPath = L.Path & AtlasLayerMeta;
 
 export class AtlasMap {
   plugin: AtlasPlugin;
@@ -260,8 +273,6 @@ export class AtlasMap {
       btn.type = "button";
       btn.title = "显示/隐藏 GPS 轨迹（Travel/轨迹/）";
       btn.textContent = "GPS";
-      btn.style.fontSize = "10px";
-      btn.style.fontWeight = "600";
       L.DomEvent.disableClickPropagation(btn);
       btn.onclick = () => {
         this.tracksVisible = !this.tracksVisible;
@@ -279,7 +290,6 @@ export class AtlasMap {
       btn.type = "button";
       btn.title = "显示/隐藏常用机场";
       btn.textContent = "✈";
-      btn.style.fontSize = "13px";
       L.DomEvent.disableClickPropagation(btn);
       btn.onclick = () => {
         this.airportsVisible = !this.airportsVisible;
@@ -296,8 +306,6 @@ export class AtlasMap {
       btn.type = "button";
       btn.title = "显示/隐藏国土覆盖率格点（导入轨迹后可用）";
       btn.textContent = "格";
-      btn.style.fontSize = "10px";
-      btn.style.fontWeight = "600";
       L.DomEvent.disableClickPropagation(btn);
       btn.onclick = () => {
         this.coverageVisible = !this.coverageVisible;
@@ -311,22 +319,24 @@ export class AtlasMap {
     const levelCtrl = new L.Control({ position: "topleft" });
     levelCtrl.onAdd = () => {
       const div = L.DomUtil.create("div", "atlas-level-control");
-      div.innerHTML = `
-        <select id="atlas-level-select">
-          <option value="auto">自动层级</option>
-          <option value="country">国家级</option>
-          <option value="admin1">省级</option>
-          <option value="admin2">市级</option>
-        </select>
-      `;
+      const select = div.createEl("select", { attr: { id: "atlas-level-select" } });
+      const levelOptions: Array<[RenderMode, string]> = [
+        ["auto", "自动层级"],
+        ["country", "国家级"],
+        ["admin1", "省级"],
+        ["admin2", "市级"],
+      ];
+      for (const [value, label] of levelOptions) {
+        const opt = select.createEl("option", { text: label });
+        opt.value = value;
+      }
       L.DomEvent.disableClickPropagation(div);
-      
-      const select = div.querySelector("select") as HTMLSelectElement;
+
       select.onchange = () => {
         this.renderMode = select.value as RenderMode;
         void this.renderGeoJson();
       };
-      
+
       return div;
     };
     levelCtrl.addTo(this.map);
@@ -820,7 +830,7 @@ export class AtlasMap {
     // 初始样式建层时算好并缓存（styleFor → isLit 已按要素记忆，这里只多一次查表）：
     // 悬停恢复/选中恢复直接复用屏上已绘制的样式，不再重算点亮状态
     const baseStyle = this.styleFor(feature, level);
-    (layer as any)._atlasStyle = baseStyle;
+    (layer as AtlasPath)._atlasStyle = baseStyle;
 
     layer.on("mouseover", (e: L.LeafletMouseEvent) => {
       const target = e.target as L.Path;
@@ -836,9 +846,9 @@ export class AtlasMap {
 
     layer.on("click", () => {
       if (this.selectedRegion) {
-        const prev = this.selectedRegion as any;
+        const prev = this.selectedRegion as AtlasPath;
         const prevLevel = prev._atlasLevel || level;
-        const prevFeature = prev._atlasFeature as AdminFeature | undefined;
+        const prevFeature = prev._atlasFeature;
         // 恢复优先用建层时缓存的原始样式（与屏上绘制一致、免重算点亮状态）；
         // _atlasStyle 缺失时回退到原重算路径
         (this.selectedRegion as L.Path).setStyle(
@@ -848,11 +858,11 @@ export class AtlasMap {
       }
 
       this.selectedRegion = layer;
-      (layer as any)._atlasLevel = level;
-      (layer as any)._atlasFeature = feature;
+      (layer as AtlasPath)._atlasLevel = level;
+      (layer as AtlasPath)._atlasFeature = feature;
       (layer as L.Path).setStyle(SELECTED_STYLE);
 
-      this.onRegionSelect(props, feature, level);
+      this.onRegionSelect(props, level);
     });
 
     // 双击城市区域 → 打开对应笔记（未建档则提示；非城市区域保持默认双击缩放）
@@ -920,8 +930,7 @@ export class AtlasMap {
     new Notice(`已打开：${city.name}`);
   }
 
-  private onRegionSelect(props: AdminProperties, feature: AdminFeature, level: string): void {
-    const centroid = getCentroid(feature);
+  private onRegionSelect(props: AdminProperties, level: string): void {
     const levelName = level === "country" ? "国家级" : level === "admin2" ? "市级" : "省级";
     this.showStatus(`已选择：${props.name} (${levelName})`);
 
@@ -1012,7 +1021,7 @@ export class AtlasMap {
     if (!this.airportsVisible) return;
 
     if (!this.map.getPane("atlas-airport")) {
-      this.map.createPane("atlas-airport").style.zIndex = "460";
+      this.map.createPane("atlas-airport");
     }
     const layer = L.layerGroup();
     for (const ap of AIRPORTS) {
@@ -1022,24 +1031,20 @@ export class AtlasMap {
         iconSize: [18, 18],
         iconAnchor: [9, 9],
       });
-      const lines = [
-        `<b>${ap.name}</b>`,
-        `${ap.iata} · ${ap.city} · ${ap.country}`,
-      ];
+
+      // DOM 弹窗：信息行 + 「添加为地点」按钮（createEl/createDiv 构建，不拼接 HTML）
+      const popup = L.DomUtil.create("div");
+      popup.createDiv("atlas-popup-line").createEl("b", { text: ap.name });
+      popup.createDiv("atlas-popup-line").setText(`${ap.iata} · ${ap.city} · ${ap.country}`);
       if (home && hasCoords(home)) {
         const km = Math.round(
           distanceKm({ lat: home.lat, lng: home.lng }, { lat: ap.lat, lng: ap.lng }),
         );
-        lines.push(`距${home.name} ${km.toLocaleString()} km`);
+        popup.createDiv("atlas-popup-line").setText(`距${home.name} ${km.toLocaleString()} km`);
       }
-      lines.push(`坐标 ${ap.lat.toFixed(4)}, ${ap.lng.toFixed(4)}`);
-
-      // DOM 弹窗：信息行 + 「添加为地点」按钮
-      const popup = document.createElement("div");
-      for (const l of lines) {
-        const row = popup.createDiv("atlas-popup-line");
-        row.innerHTML = l;
-      }
+      popup
+        .createDiv("atlas-popup-line")
+        .setText(`坐标 ${ap.lat.toFixed(4)}, ${ap.lng.toFixed(4)}`);
       const btn = popup.createEl("button", { text: "✈ 添加为地点", cls: "atlas-airport-add-btn" });
       btn.onclick = () => void this.addAirportAsPlace(ap);
       L.marker([ap.lat, ap.lng], { icon, pane: "atlas-airport" })
@@ -1112,7 +1117,7 @@ export class AtlasMap {
 
     if (!this.trackRenderer) {
       if (!this.map.getPane("atlas-track")) {
-        this.map.createPane("atlas-track").style.zIndex = "455";
+        this.map.createPane("atlas-track");
       }
       this.trackRenderer = L.svg({ pane: "atlas-track" });
     }
@@ -1131,7 +1136,7 @@ export class AtlasMap {
         geo = cached.geo as TrackGeoJson;
       } else {
         try {
-          geo = JSON.parse(await this.plugin.app.vault.adapter.read(f.path));
+          geo = JSON.parse(await this.plugin.app.vault.adapter.read(f.path)) as TrackGeoJson;
           this.trackCache.set(f.path, { mtime: f.stat.mtime, geo });
         } catch {
           continue;
@@ -1221,12 +1226,12 @@ export class AtlasMap {
       const cellSet = new Set<string>();
       for (const f of files) {
         try {
-          let geo: { features?: Array<{ properties?: { cells?: string[] } }> } | null = null;
+          let geo: CoverageGeo | null = null;
           const cached = this.trackCache.get(f.path);
           if (cached && cached.mtime === f.stat.mtime) {
-            geo = cached.geo as typeof geo;
+            geo = cached.geo as CoverageGeo;
           } else {
-            geo = JSON.parse(await this.plugin.app.vault.adapter.read(f.path));
+            geo = JSON.parse(await this.plugin.app.vault.adapter.read(f.path)) as CoverageGeo;
             this.trackCache.set(f.path, { mtime: f.stat.mtime, geo });
           }
           for (const c of geo?.features?.[0]?.properties?.cells ?? []) cellSet.add(c);
@@ -1235,7 +1240,7 @@ export class AtlasMap {
         }
       }
       if (!this.map.getPane("atlas-track")) {
-        this.map.createPane("atlas-track").style.zIndex = "455";
+        this.map.createPane("atlas-track");
       }
       const layer = L.layerGroup();
       // 渲染器复用：每次重建都 new canvas 会在窗格里堆积空 canvas 容器
@@ -1302,7 +1307,7 @@ export class AtlasMap {
 
     // 路线放在专用窗格（z=450）：高于行政区划 canvas（400），低于标记（600）
     if (!this.map.getPane("atlas-route")) {
-      this.map.createPane("atlas-route").style.zIndex = "450";
+      this.map.createPane("atlas-route");
     }
     // 渲染器只建一次：重复创建会在地图上堆积空的 SVG 容器
     if (!this.routeRenderer) this.routeRenderer = L.svg({ pane: "atlas-route" });

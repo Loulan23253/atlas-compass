@@ -115,12 +115,14 @@ export default class AtlasPlugin extends Plugin {
   async activateView(): Promise<void> {
     const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_ATLAS);
     if (existing.length) {
-      this.app.workspace.revealLeaf(existing[0]);
+      // revealLeaf 在官方 typings 里标 @since 1.7.2，高于 minAppVersion 1.5.0，
+      // 改用 1.5.0 前就存在的 setActiveLeaf（@since 0.16.3）
+      this.app.workspace.setActiveLeaf(existing[0], { focus: true });
       return;
     }
     const leaf = this.app.workspace.getLeaf("tab");
     await leaf.setViewState({ type: VIEW_TYPE_ATLAS, active: true });
-    this.app.workspace.revealLeaf(leaf);
+    this.app.workspace.setActiveLeaf(leaf, { focus: true });
   }
 
   refreshViews(): void {

@@ -70,7 +70,7 @@ export class AtlasSettingTab extends PluginSettingTab {
   display(): void {
     const c = this.containerEl;
     c.empty();
-    c.createEl("h2", { text: "Atlas 旅行地图" });
+    new Setting(c).setName("Atlas 旅行地图").setHeading();
     new Setting(c)
       .setName("旅行笔记根目录")
       .setDesc("扫描此目录下 type: city / type: place 的笔记")
