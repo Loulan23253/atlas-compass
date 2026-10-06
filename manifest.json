@@ -1,6 +1,6 @@
 {
-  "id": "atlas",
-  "name": "Atlas",
+  "id": "atlas-compass",
+  "name": "Atlas Compass",
   "version": "0.7.0",
   "minAppVersion": "1.5.0",
   "description": "A geographic knowledge system for Obsidian.",
