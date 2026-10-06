@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": { "obsidian": ["node_modules/obsidian"] },
+    "typeRoots": ["node_modules/@types", "node_modules/obsidian"],
+    "module": "ESNext",
+    "target": "es2018",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "inlineSourceMap": true,
+    "inlineSources": true,
+    "allowJs": false
+  },
+  "include": ["src/**/*.ts"]
+}

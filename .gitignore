@@ -1,0 +1,9 @@
+node_modules/
+main.js
+*.map
+.DS_Store
+.zcode/
+.zcode/
+
+data.json
+.zcodeignore

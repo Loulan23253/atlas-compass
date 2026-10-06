@@ -1,0 +1,666 @@
+/* ===== Atlas layout ===== */
+.atlas-container {
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  background: var(--background-primary);
+  color: var(--text-normal);
+}
+
+.atlas-tabs {
+  display: flex;
+  gap: 4px;
+  padding: 6px 8px 0;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+  flex: 0 0 auto;
+}
+
+.atlas-tab {
+  border: 1px solid transparent;
+  border-bottom: none;
+  border-radius: 8px 8px 0 0;
+  padding: 6px 14px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 13px;
+}
+
+.atlas-tab:hover { background: var(--background-modifier-hover); color: var(--text-normal); }
+
+.atlas-tab.is-active {
+  background: var(--background-primary);
+  border-color: var(--background-modifier-border);
+  color: var(--text-normal);
+  font-weight: 600;
+}
+
+.atlas-body {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.atlas-map-pane {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 240px minmax(360px, 1fr) 290px;
+  overflow: hidden;
+}
+
+.atlas-map-pane > * { min-height: 0; }
+
+.atlas-sidebar, .atlas-detail {
+  min-width: 0;
+  overflow: auto;
+  padding: 14px;
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+}
+
+.atlas-sidebar { border-radius: 0 0 0 12px; }
+.atlas-detail { border-radius: 0 0 12px 0; }
+
+.atlas-map {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  background: var(--background-primary);
+  border-top: 1px solid var(--background-modifier-border);
+  border-bottom: 1px solid var(--background-modifier-border);
+  height: 100%;
+}
+
+.atlas-map .leaflet-container {
+  height: 100%;
+  width: 100%;
+  font-family: var(--font-interface);
+}
+
+/* ===== Sidebar ===== */
+.atlas-sidebar-header { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
+.atlas-sidebar-header h3 { margin: 0; flex: 1; }
+.atlas-add-btn { white-space: nowrap; }
+.atlas-search-input { box-sizing: border-box; width: 100%; margin-bottom: 10px; padding: 6px 9px; }
+.atlas-city-list { overflow: auto; }
+.atlas-country-group { margin-bottom: 12px; }
+.atlas-country-title { font-size: 0.82em; color: var(--text-muted); font-weight: 700; margin: 8px 0 4px; }
+.atlas-city-item { padding: 7px 9px; border-radius: 8px; cursor: pointer; }
+.atlas-city-item:hover, .atlas-city-item.is-active { background: var(--background-modifier-hover); }
+.atlas-city-item.no-coord { opacity: 0.55; }
+
+/* ===== Detail ===== */
+.atlas-detail h3 { margin-top: 2px; }
+.atlas-detail-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.atlas-muted { color: var(--text-muted); }
+.atlas-detail-row span:last-child { word-break: break-all; text-align: right; }
+.atlas-detail-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.atlas-detail-actions button { flex: 1; }
+
+/* ===== Map overlays ===== */
+.atlas-map-status {
+  position: absolute;
+  z-index: 1000;
+  left: 12px;
+  bottom: 12px;
+  padding: 6px 9px;
+  border-radius: 8px;
+  background: rgba(20, 20, 20, 0.78);
+  color: #ddd;
+  font-size: 11px;
+  pointer-events: none;
+}
+
+.atlas-statbar {
+  position: absolute;
+  z-index: 1100;
+  top: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 6px;
+  pointer-events: none;
+}
+
+.atlas-stat {
+  padding: 5px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  background: rgba(20, 20, 20, 0.78);
+  color: #ddd;
+  font-size: 11px;
+}
+
+.atlas-fit-btn {
+  width: 30px;
+  height: 30px;
+  line-height: 1;
+  border: none;
+  border-radius: 7px;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: 16px;
+  cursor: pointer;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+}
+
+.atlas-fit-btn:hover { background: var(--background-modifier-hover); }
+
+.atlas-route-btn {
+  width: 30px;
+  height: 30px;
+  line-height: 1;
+  border: none;
+  border-radius: 7px;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-size: 14px;
+  cursor: pointer;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.4);
+}
+
+.atlas-route-btn:hover { background: var(--background-modifier-hover); }
+.atlas-route-btn.is-off { opacity: 0.45; }
+
+/* 探索覆盖率 */
+.atlas-coverage-row { margin-bottom: 10px; }
+.atlas-coverage-label { font-size: 12px; margin-bottom: 3px; }
+.atlas-coverage-bar {
+  height: 6px;
+  border-radius: 3px;
+  background: var(--background-modifier-border);
+  overflow: hidden;
+}
+.atlas-coverage-fill {
+  height: 100%;
+  background: var(--interactive-accent);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+/* CSV/JSON 导入 */
+.atlas-import-status { margin: 8px 0; font-size: 12px; color: var(--text-muted); }
+.atlas-import-preview {
+  max-height: 130px;
+  overflow: auto;
+  font-size: 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+}
+
+/* 覆盖率展开明细 */
+.atlas-coverage-clickable { cursor: pointer; }
+.atlas-coverage-hint { font-size: 10px; opacity: 0.6; }
+.atlas-coverage-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+.atlas-coverage-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+  max-height: 180px;
+  overflow: auto;
+}
+.atlas-coverage-chip {
+  font-size: 11px;
+  padding: 1px 7px;
+  border-radius: 9px;
+  background: var(--background-secondary);
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+.atlas-coverage-chip.is-visited {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  font-weight: 500;
+}
+
+/* 设置项校验状态 */
+.atlas-setting-status { font-size: 11px; margin-top: 4px; color: var(--text-muted); }
+
+/* 移动端窄屏：侧边栏/详情折叠为上下排布（.atlas-map-pane 是 grid 布局，
+   原规则里的 flex-direction 对其无效，已移除） */
+.is-mobile .atlas-sidebar {
+  width: 100%;
+  max-height: 30%;
+  border-right: none;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+.is-mobile .atlas-detail {
+  width: 100%;
+  max-height: 35%;
+  border-left: none;
+  border-top: 1px solid var(--background-modifier-border);
+  order: 3;
+}
+.is-mobile .atlas-map {
+  flex: 1;
+  min-height: 200px;
+}
+
+.atlas-marker { background: transparent; border: none; }
+/* .atlas-popup-line 的间距/字号统一由下方「弹窗样式」区定义 */
+
+/* ===== Dashboard ===== */
+.atlas-dashboard {
+  height: 100%;
+  overflow: auto;
+  padding: 18px 24px 40px;
+  background: var(--background-primary);
+}
+
+.atlas-dashboard h2 { margin-top: 0; }
+
+.atlas-dash-section { margin-bottom: 26px; }
+.atlas-dash-section h3 {
+  margin: 0 0 10px;
+  font-size: 0.95em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.atlas-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+
+.atlas-stat-card {
+  padding: 14px 16px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 12px;
+  background: var(--background-secondary);
+}
+
+.atlas-stat-value { font-size: 1.7em; font-weight: 700; line-height: 1.1; }
+.atlas-stat-label { margin-top: 4px; font-size: 0.82em; color: var(--text-muted); }
+
+.atlas-dash-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 10px;
+  margin-bottom: 6px;
+  cursor: pointer;
+  background: var(--background-primary);
+}
+
+.atlas-dash-row:hover { background: var(--background-modifier-hover); }
+
+.atlas-locate-btn {
+  flex: 0 0 auto;
+  padding: 3px 10px;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.atlas-dash-label { font-weight: 500; }
+
+/* ===== Responsive ===== */
+@media (max-width: 1000px) {
+  .atlas-map-pane { grid-template-columns: 210px minmax(300px, 1fr); }
+  .atlas-detail { display: none; }
+}
+
+.is-hidden { display: none !important; }
+
+/* ===== Leaflet core styles ===== */
+.leaflet-pane,.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow,.leaflet-tile-container,.leaflet-map-pane svg,.leaflet-map-pane canvas,.leaflet-zoom-box,.leaflet-image-layer,.leaflet-layer{position:absolute;left:0;top:0}
+.leaflet-container{overflow:hidden;-ms-touch-action:none;touch-action:none}
+.leaflet-tile,.leaflet-marker-icon,.leaflet-marker-shadow{user-select:none;-webkit-user-drag:none}
+.leaflet-tile{filter:inherit;visibility:hidden}
+.leaflet-tile-loaded{visibility:inherit}
+.leaflet-zoom-animated{transform-origin:0 0}
+.leaflet-zoom-anim .leaflet-zoom-animated{transition:transform .25s cubic-bezier(0,0,.25,1)}
+.leaflet-zoom-anim .leaflet-tile,.leaflet-pan-anim .leaflet-tile{transition:none}
+.leaflet-container img{max-width:none!important}
+.leaflet-control{position:relative;z-index:800;pointer-events:auto;float:left;clear:both}
+.leaflet-top,.leaflet-bottom{position:absolute;z-index:1000;pointer-events:none}
+.leaflet-top{top:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}.leaflet-right{right:0}
+.leaflet-control{float:left;clear:both}.leaflet-right .leaflet-control{float:right;clear:right}
+.leaflet-top .leaflet-control{margin-top:10px}.leaflet-bottom .leaflet-control{margin-bottom:10px}
+.leaflet-left .leaflet-control{margin-left:10px}.leaflet-right .leaflet-control{margin-right:10px}
+.leaflet-control-zoom a{display:block;width:30px;height:30px;line-height:30px;text-align:center;text-decoration:none;background:var(--background-secondary);color:var(--text-normal);border-bottom:1px solid var(--background-modifier-border)}
+.leaflet-control-zoom a:first-child{border-radius:7px 7px 0 0}.leaflet-control-zoom a:last-child{border-radius:0 0 7px 7px;border-bottom:0}
+.leaflet-control-attribution{padding:2px 5px;background:rgba(255,255,255,.75);margin:0}
+.leaflet-popup{position:absolute;text-align:center;margin-bottom:20px}.leaflet-popup-content-wrapper{padding:1px;text-align:left;border-radius:8px;background:var(--background-primary);color:var(--text-normal);box-shadow:0 3px 14px rgba(0,0,0,.4)}
+.leaflet-popup-content{margin:10px 12px;line-height:1.4}.leaflet-popup-tip{width:17px;height:17px;padding:1px;margin:-9px auto 0;transform:rotate(45deg);background:var(--background-primary)}
+.leaflet-popup-close-button{position:absolute;right:0;top:0;padding:4px 4px 0 0;border:0;background:transparent;color:var(--text-muted);font-size:18px}
+.leaflet-control-zoom{border-radius:7px;overflow:hidden}
+
+/* ===== Atlas layout stability ===== */
+.atlas-container { min-height: 0; }
+.atlas-container > * { min-height: 0; }
+.atlas-map .leaflet-container { position: absolute; inset: 0; }
+.atlas-sidebar-header button { flex: 0 0 auto; }
+
+/* 离线地图层级控件 */
+.atlas-level-control {
+  background: var(--background-primary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+.atlas-level-control select {
+  background: var(--background-primary);
+  color: var(--text-normal);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 3px;
+  padding: 4px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.atlas-level-control select:hover {
+  background: var(--background-modifier-hover);
+}
+
+/* 区域弹窗样式（原两处定义合并） */
+.atlas-region-popup {
+  padding: 4px 0;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+/* 海洋背景由 Leaflet rectangle 图层绘制，无需占位规则 */
+
+/* 地区名称标签（原三处重复定义合并为一处；属性取级联后实际生效值） */
+.atlas-label {
+  background: none !important;
+  border: none !important;
+  text-align: center;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
+.atlas-label span {
+  display: inline-block;
+  transform: translate(-50%, -50%);
+  background: rgba(255, 255, 255, 0.85);
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  line-height: 1.3;
+  white-space: nowrap;
+  color: #333;
+  text-shadow: 0 0 3px rgba(255,255,255,0.8);
+  max-width: 120px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 国家级标签 - 较大 */
+.atlas-label-country span {
+  font-size: 12px;
+  font-weight: 600;
+  color: #212121;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 3px 8px;
+}
+
+/* 省级标签 - 中等 */
+.atlas-label-admin1 span {
+  font-size: 11px;
+  font-weight: 500;
+  color: #424242;
+  background: rgba(232, 234, 246, 0.9);
+}
+
+/* 市级标签 - 较小 */
+.atlas-label-admin2 span {
+  font-size: 10px;
+  font-weight: 400;
+  color: #4527a0;
+  background: rgba(243, 229, 245, 0.9);
+}
+
+/* 弹窗样式（.atlas-region-popup 在上方「区域弹窗样式」处统一合并定义） */
+
+.atlas-popup-header {
+  font-size: 16px;
+  font-weight: 600;
+  color: #212121;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.atlas-popup-local {
+  font-size: 13px;
+  color: #757575;
+  margin-bottom: 6px;
+}
+
+.atlas-popup-level {
+  display: inline-block;
+  background: #e3f2fd;
+  color: #1565c0;
+  padding: 2px 8px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-bottom: 6px;
+}
+
+.atlas-popup-code {
+  font-size: 12px;
+  color: #9e9e9e;
+  margin-top: 4px;
+}
+
+.atlas-popup-parent {
+  font-size: 12px;
+  color: #616161;
+  margin-top: 4px;
+}
+
+.atlas-popup-line {
+  margin: 4px 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* 添加城市对话框样式 */
+.atlas-modal-coord {
+  margin-bottom: 16px;
+  padding: 8px 12px;
+  background: #f5f5f5;
+  border-radius: 4px;
+  font-size: 13px;
+  color: #666;
+}
+
+.atlas-modal-region {
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--interactive-accent);
+  font-weight: 500;
+}
+
+.atlas-modal-buttons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.atlas-modal-buttons button {
+  padding: 8px 16px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  background: white;
+  cursor: pointer;
+}
+
+.atlas-modal-buttons button.mod-cta {
+  background: #1971c2;
+  color: white;
+  border-color: #1971c2;
+}
+
+.atlas-modal-buttons button.mod-cta:hover {
+  background: #1565c0;
+}
+
+/* 机场标记 */
+.atlas-airport-marker { background: transparent; border: none; }
+.atlas-airport-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #495057;
+  color: #fff;
+  font-size: 10px;
+  line-height: 1;
+  box-shadow: 0 1px 4px rgba(0,0,0,.35);
+  cursor: pointer;
+}
+.atlas-airport-icon.tier3 { width: 22px; height: 22px; font-size: 12px; background: #1864ab; }
+.atlas-airport-icon.tier2 { background: #3b5bdb; }
+.atlas-airport-icon.tier1 { opacity: .85; }
+
+/* 附近机场（城市详情） */
+.atlas-detail-airports { margin-top: 10px; }
+.atlas-detail-sub {
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 4px;
+}
+.atlas-airport-row {
+  font-size: 12px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-normal);
+}
+.atlas-airport-row:hover { background: var(--background-modifier-hover); }
+
+/* 机场弹窗按钮 */
+.atlas-airport-add-btn {
+  margin-top: 8px;
+  width: 100%;
+  font-size: 12px;
+}
+
+/* 点亮足迹弹窗行 */
+.atlas-popup-visit {
+  color: #e8590c;
+  font-weight: 600;
+  font-size: 12px;
+}
+
+/* 弹窗层级保底：确保详情卡永远盖过地名标签（防主题样式干扰 pane 层级） */
+.leaflet-popup-pane {
+  z-index: 800 !important;
+}
+
+/* 到访过的城市：点亮语义的暖金标签（与点亮区域配色呼应） */
+.atlas-label-visited span {
+  color: #d9480f;
+  font-weight: 700;
+  background: rgba(255, 232, 196, 0.95);
+  text-shadow: none;
+  box-shadow: 0 0 0 1px rgba(232, 144, 0, 0.35);
+}
+
+/* 到访次数角标 */
+.atlas-label-count {
+  display: inline-block;
+  margin-left: 3px;
+  padding: 0 4px;
+  border-radius: 6px;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 600;
+  line-height: 12px;
+  background: rgba(232, 144, 0, 0.9);
+  color: #fff;
+  vertical-align: 1px;
+  text-shadow: none;
+}
+
+/* 暗色主题下的标签适配 */
+.theme-dark .atlas-label span {
+  background: rgba(40, 42, 48, 0.88);
+  color: #adb5bd;
+  text-shadow: 0 0 3px rgba(0, 0, 0, 0.8);
+}
+.theme-dark .atlas-label-country span {
+  color: #e9ecef;
+  background: rgba(40, 42, 48, 0.92);
+}
+.theme-dark .atlas-label-admin1 span {
+  color: #ced4da;
+  background: rgba(52, 48, 66, 0.9);
+}
+.theme-dark .atlas-label-admin2 span {
+  color: #adb5bd;
+  background: rgba(38, 44, 56, 0.9);
+}
+.theme-dark .atlas-label-visited span {
+  color: #ffa94d;
+  font-weight: 700;
+  background: rgba(64, 43, 10, 0.92);
+  text-shadow: none;
+  box-shadow: 0 0 0 1px rgba(232, 144, 0, 0.45);
+}
+.theme-dark .atlas-label-count {
+  background: rgba(232, 144, 0, 0.9);
+  color: #1a1a1a;
+}
+
+/* 选中城市的定位标签：白色标签钉在视线中央 */
+.atlas-label-pinned span {
+  background: #ffffff;
+  color: #212529;
+  font-weight: 600;
+  box-shadow: 0 0 0 2px rgba(232, 144, 0, 0.6);
+  text-shadow: none;
+}
+.theme-dark .atlas-label-pinned span {
+  background: #343a40;
+  color: #f8f9fa;
+  box-shadow: 0 0 0 2px rgba(232, 144, 0, 0.6);
+}
+
+/* ===== 生成的旅行笔记样式（旅程/年度回顾 cssclasses） ===== */
+.atlas-trip h1 {
+  color: #d9480f;
+  border-bottom: 2px solid rgba(232, 144, 0, 0.35);
+  padding-bottom: 6px;
+}
+.theme-dark .atlas-trip h1 {
+  color: #ffa94d;
+}
+.atlas-trip h2 {
+  font-size: 1.1em;
+  color: #495057;
+}
+.theme-dark .atlas-trip h2 {
+  color: #ced4da;
+}

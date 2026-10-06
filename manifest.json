@@ -1,0 +1,9 @@
+{
+  "id": "atlas",
+  "name": "Atlas",
+  "version": "0.7.0",
+  "minAppVersion": "1.5.0",
+  "description": "A geographic knowledge system for Obsidian.",
+  "author": "Yixianrichen",
+  "isDesktopOnly": false
+}
