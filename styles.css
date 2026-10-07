@@ -247,25 +247,6 @@
 /* 设置项校验状态 */
 .atlas-setting-status { font-size: 11px; margin-top: 4px; color: var(--text-muted); }
 
-/* 移动端窄屏：侧边栏/详情折叠为上下排布（.atlas-map-pane 是 grid 布局，
-   原规则里的 flex-direction 对其无效，已移除） */
-.is-mobile .atlas-sidebar {
-  width: 100%;
-  max-height: 30%;
-  border-right: none;
-  border-bottom: 1px solid var(--background-modifier-border);
-}
-.is-mobile .atlas-detail {
-  width: 100%;
-  max-height: 35%;
-  border-left: none;
-  border-top: 1px solid var(--background-modifier-border);
-  order: 3;
-}
-.is-mobile .atlas-map {
-  flex: 1;
-  min-height: 200px;
-}
 
 .atlas-marker { background: transparent; border: none; }
 /* .atlas-popup-line 的间距/字号统一由下方「弹窗样式」区定义 */
@@ -333,6 +314,27 @@
 @media (max-width: 1000px) {
   .atlas-map-pane { grid-template-columns: 210px minmax(300px, 1fr); }
   .atlas-detail { display: none; }
+}
+
+/* 手机竖屏 / 窄窗（≤560px）：基础布局是三列 grid（240px+360px+290px），竖屏必然
+   横向溢出裁切——改为单列纵向堆叠：侧栏(上) / 地图(中,自适应) / 详情(下)。
+   行高用 auto + 子项 max-height 封顶（空的 minmax(0,X%) 轨道会被轨道最大化撑到 X%）。
+   横屏手机（宽 >560px）回归两列，不再浪费横向空间 */
+@media (max-width: 560px) {
+  .atlas-map-pane {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: auto minmax(220px, 1fr) auto;
+  }
+  .atlas-map-pane > .atlas-sidebar {
+    max-height: 30%;
+    border-right: none;
+    border-bottom: 1px solid var(--background-modifier-border);
+  }
+  .atlas-map-pane > .atlas-detail {
+    max-height: 35%;
+    border-left: none;
+    border-top: 1px solid var(--background-modifier-border);
+  }
 }
 
 /* 隐藏开关：限定容器提高特异性，免 !important 即可压过主题与基础 display 规则 */

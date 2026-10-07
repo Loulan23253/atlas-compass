@@ -205,7 +205,12 @@ export class AtlasMap {
     };
     fitMinZoom();
     this.map.on("resize", fitMinZoom);
-    const minZoomObserver = new ResizeObserver(() => fitMinZoom());
+    const minZoomObserver = new ResizeObserver(() => {
+      // 容器尺寸变化（旋转/分栏/移动端堆叠）必须先重算画布，否则海洋底色
+      // 只盖住旧尺寸的范围，下方露出容器底色
+      this.map.invalidateSize();
+      fitMinZoom();
+    });
     minZoomObserver.observe(container);
     this.minZoomObserver = minZoomObserver;
     this.canvasRenderer = L.canvas({ padding: 0.5 });
