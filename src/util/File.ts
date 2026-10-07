@@ -27,7 +27,8 @@ export function num(v: unknown): number {
 /** Coerce an unknown value into a string with a fallback. Objects fall back (never "[object Object]"). */
 export function str(v: unknown, fallback = ""): string {
   if (typeof v === "string") return v;
-  if (typeof v === "number" || typeof v === "boolean") return String(v);
+  if (typeof v === "number" || typeof v === "boolean" || typeof v === "bigint") return String(v);
+  if (Array.isArray(v)) return v.map((x) => str(x)).filter(Boolean).join(",");
   if (v instanceof Date) return v.toISOString();
   return fallback;
 }
