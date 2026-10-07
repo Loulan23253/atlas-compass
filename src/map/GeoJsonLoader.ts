@@ -1,5 +1,8 @@
 import type { FeatureCollection, Feature, Geometry } from "geojson";
 import { pluginDataPath, vaultAdapter } from "../util/DataPath";
+// 国家级边界随构建内联（约 0.8MB）：官方渠道安装只分发 main.js/manifest/styles 三个文件，
+// 没有 data/ 目录时世界地图仍能打开；省/市级体积大，仍从 data/ 读取
+import countriesEmbedded from "../../data/countries.geojson";
 
 /** 行政区划级别 */
 export type AdminLevel = "country" | "admin1" | "admin2";
@@ -82,6 +85,10 @@ export async function loadAdminGeoJson(
       return emptyGeoJson();
   }
   let text = await readVaultFile(filePath);
+  if (!text && level === "country") {
+    // data/ 缺失（官方安装）→ 内置国家级兜底
+    text = countriesEmbedded;
+  }
   if (!text && lod === "lo") {
     // 简化版缺失（旧数据目录）→ 回退全精度
     filePath = filePath.replace(".lo.geojson", ".geojson");

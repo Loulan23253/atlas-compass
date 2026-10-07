@@ -18,9 +18,15 @@ A fully offline geographic knowledge system for [Obsidian](https://obsidian.md).
 
 ## Manual installation
 
-1. Download `main.js`, `manifest.json`, `styles.css` from the [latest release](https://github.com/Loulan23253/atlas-compass/releases) into `<vault>/.obsidian/plugins/atlas-compass/`.
-2. The offline datasets (boundaries, city library, coverage grid) live in the repository's `data/` folder (about 75 MB). Copy it to `<vault>/.obsidian/plugins/atlas-compass/data/`.
-3. Enable **Atlas Compass** in Obsidian's community plugins settings.
+1. Download `main.js`, `manifest.json`, `styles.css` from the [latest release](https://github.com/Loulan23253/atlas-compass/releases) into `<vault>/.obsidian/plugins/atlas-compass/`, then enable the plugin.
+2. **Data folder (recommended).** Country outlines are embedded in the bundle, so the world map opens out of the box. Province/city boundaries, the 34,149-city library, and the coverage grid live in the repository's `data/` folder (about 75 MB) — copy it next to `main.js`:
+
+   ```bash
+   git clone --depth 1 https://github.com/Loulan23253/atlas-compass.git
+   cp -R atlas-compass/data <vault>/.obsidian/plugins/atlas-compass/
+   ```
+
+   Then restart Obsidian. Without `data/` the plugin shows a notice and the map is limited to country-level outlines.
 
 ## Usage
 

@@ -14,6 +14,9 @@ const buildOptions = {
   target: "es2020",
   // 保留中文原文而非 \uXXXX 转义：产物更小、可直接 grep 验证
   charset: "utf8",
+  // 国家级边界以文本内联进 main.js：官方渠道安装只分发 3 个文件，
+  // 无 data/ 目录时世界地图仍可打开（省/市级仍需 data/）
+  loader: { ".geojson": "text" },
   // production 只分发 main.js，压缩后体积约减半；dev 保持可读 + inline sourcemap
   minify: production,
   sourcemap: production ? false : "inline",

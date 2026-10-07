@@ -509,6 +509,9 @@ export class AtlasMap {
       // 启动只加载简化版（LOD）：解析快、内存省；高缩放时再懒加载全精度
       const admin1 = await loadAdminGeoJson("admin1", undefined, "lo");
       this.geoJsonData.set("admin1", admin1);
+      if (!admin1.features.length) {
+        this.showStatus("省/市级数据缺失：把 data/ 文件夹复制到插件目录并重启 Obsidian（世界轮廓仍可浏览）");
+      }
       const chinaAdmin2 = await loadAdminGeoJson("admin2", "CHN", "lo");
       if (chinaAdmin2.features.length) this.admin2Sets.set("CHN", chinaAdmin2);
       const japanAdmin2 = await loadAdminGeoJson("admin2", "JPN", "lo");
