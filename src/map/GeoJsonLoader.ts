@@ -1,7 +1,12 @@
 import type { FeatureCollection, Feature, Geometry } from "geojson";
 import { pluginDataPath, vaultAdapter } from "../util/DataPath";
-// 国家级边界随构建内联（约 0.8MB）：官方渠道安装只分发 main.js/manifest/styles 三个文件，
-// 没有 data/ 目录时世界地图仍能打开；省/市级体积大，仍从 data/ 读取
+import {
+  embeddedAdmin1Lo,
+  embeddedChinaAdmin2Lo,
+  embeddedJpnAdmin2Lo,
+} from "../util/Embedded";
+// 国家级边界随构建内联（约 0.8MB）。省/市级大文件经 util/Embedded 惰性内联——
+// 官方渠道安装只分发 main.js/manifest/styles 三个文件，全部内联后无 data/ 也功能完整
 import countriesEmbedded from "../../data/countries.geojson";
 
 /** 行政区划级别 */
@@ -85,14 +90,17 @@ export async function loadAdminGeoJson(
       return emptyGeoJson();
   }
   let text = await readVaultFile(filePath);
-  if (!text && level === "country") {
-    // data/ 缺失（官方安装）→ 内置国家级兜底
-    text = countriesEmbedded;
-  }
   if (!text && lod === "lo") {
     // 简化版缺失（旧数据目录）→ 回退全精度
     filePath = filePath.replace(".lo.geojson", ".geojson");
     text = await readVaultFile(filePath);
+  }
+  if (!text) {
+    // data/ 缺失（官方安装）或该精度文件缺失 → 内置 lo 兜底（避免空集覆盖渲染层）
+    if (level === "country") text = countriesEmbedded;
+    else if (level === "admin1") text = embeddedAdmin1Lo();
+    else if (level === "admin2" && countryIso3 === "CHN") text = embeddedChinaAdmin2Lo();
+    else if (level === "admin2" && countryIso3 === "JPN") text = embeddedJpnAdmin2Lo();
   }
   
   try {
@@ -417,15 +425,15 @@ const ADMIN2_PREFIX_ISO3: Record<string, string> = {
   japan: "JPN",
 };
 
-/** 扫描 data/admin2/ 下实际存在的市级数据文件，返回可用的 ISO3 列表。
+/** 可用的市级数据 ISO3：内联基线（CHN/JPN）∪ data/admin2/ 下实际发现的文件。
  *  注意必须用 adapter.list —— vault.getFiles() 不索引 .obsidian/ 目录 */
 export async function availableAdmin2Iso3(): Promise<string[]> {
+  const out = new Set<string>(["CHN", "JPN"]);
   const adapter = vaultAdapter();
-  if (!adapter) return [];
+  if (!adapter) return [...out];
   try {
     const dir = `${pluginDataPath()}/admin2`;
     const listed = await adapter.list(dir);
-    const out = new Set<string>();
     for (const full of listed.files) {
       const name = full.split("/").pop() ?? "";
       const m = name.match(/^(.+?)_admin2\.geojson$/i);
@@ -435,6 +443,6 @@ export async function availableAdmin2Iso3(): Promise<string[]> {
     return [...out];
   } catch (e) {
     console.warn("Atlas: list admin2 datasets failed:", e);
-    return [];
+    return [...out]; // 目录不存在（官方安装）→ 仍返回内联基线
   }
 }

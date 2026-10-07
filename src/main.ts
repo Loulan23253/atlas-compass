@@ -10,7 +10,7 @@ import { YearReviewCommand } from "./commands/YearReview";
 import { ImportHistoryModal, TrackFilePickerModal } from "./commands/TrackTools";
 import { TripsCommand } from "./commands/Trips";
 import { PhotoFootprintCommand } from "./commands/Photos";
-import { setDataRoot, pluginDataPath, vaultAdapter } from "./util/DataPath";
+import { setDataRoot } from "./util/DataPath";
 
 export default class AtlasPlugin extends Plugin {
   settings: AtlasSettings = DEFAULT_SETTINGS;
@@ -25,21 +25,6 @@ export default class AtlasPlugin extends Plugin {
     const loaded = (await this.loadData()) as Partial<AtlasSettings> | null;
     this.settings = { ...DEFAULT_SETTINGS, ...loaded };
 
-    // 数据目录探测：官方渠道安装只带 3 个文件，省/市级细节与覆盖率功能需要 data/
-    void (async () => {
-      const adapter = vaultAdapter();
-      if (!adapter) return;
-      try {
-        if (!(await adapter.exists(`${pluginDataPath()}/admin1.lo.geojson`))) {
-          new Notice(
-            "Atlas Compass：未找到 data/ 数据目录，地图仅显示国家级轮廓。把插件仓库的 data/ 文件夹复制到本插件目录后重启 Obsidian，可获得省/市级边界与覆盖率功能（详见 README）。",
-            12000,
-          );
-        }
-      } catch {
-        // adapter 不可用时静默——地图自身会再提示
-      }
-    })();
     this.db = new AtlasDB(this.app, this.settings);
 
     this.registerView(VIEW_TYPE_ATLAS, (leaf) => new AtlasView(leaf, this));

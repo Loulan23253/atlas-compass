@@ -617,6 +617,7 @@ export class AtlasMap {
           this.hiLoaded.add(key);
           this.showStatus("正在加载高精度边界…");
           void loadAdminGeoJson("admin2", iso3, "hi").then((hi) => {
+            if (!hi.features.length) return; // hi 文件缺失：内联兜底也是空时保留 lo 图层
             this.admin2Sets.set(iso3, hi);
             this.mergedAdmin2 = null;
             this.renderGeoJson();
@@ -628,6 +629,7 @@ export class AtlasMap {
       this.hiLoaded.add("admin1|hi");
       this.showStatus("正在加载高精度边界…");
       void loadAdminGeoJson("admin1", undefined, "hi").then((hi) => {
+        if (!hi.features.length) return; // hi 文件缺失：保留 lo 图层
         this.geoJsonData.set("admin1", hi);
         this.renderGeoJson();
       });

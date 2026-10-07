@@ -6,6 +6,7 @@
 
 import { geohashEncode } from "./WorldCityIndex";
 import { pluginDataPath } from "../util/DataPath";
+import { embeddedChinaCells } from "../util/Embedded";
 
 
 let chinaCells: Set<string> | null = null;
@@ -16,7 +17,9 @@ export function loadChinaCells(readText: (path: string) => Promise<string | null
   if (chinaCells) return Promise.resolve(chinaCells);
   if (loading) return loading;
   loading = (async () => {
-    const text = await readText(`${pluginDataPath()}/chinacells.txt`);
+    const file = await readText(`${pluginDataPath()}/chinacells.txt`);
+    // data/ 缺失（官方安装）→ 内联兜底
+    const text = file ?? embeddedChinaCells();
     const set = new Set<string>();
     if (text) {
       // 文件为 5 字符编码首尾相接的纯串

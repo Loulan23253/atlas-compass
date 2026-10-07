@@ -16,7 +16,9 @@ const buildOptions = {
   charset: "utf8",
   // 国家级边界以文本内联进 main.js：官方渠道安装只分发 3 个文件，
   // 无 data/ 目录时世界地图仍可打开（省/市级仍需 data/）
-  loader: { ".geojson": "text" },
+  loader: { ".geojson": "text", ".txt": "text", ".json": "text" },
+  // worldcities.json 用别名导入：绕开 TS 对真实 .json 的类型推断（运行时是文本，惰性 JSON.parse）
+  alias: { "atlas-worldcities": "./data/worldcities.json" },
   // production 只分发 main.js，压缩后体积约减半；dev 保持可读 + inline sourcemap
   minify: production,
   sourcemap: production ? false : "inline",

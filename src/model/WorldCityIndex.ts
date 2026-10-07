@@ -29,6 +29,7 @@ interface WorldCityHit {
 }
 
 import { pluginDataPath } from "../util/DataPath";
+import { embeddedWorldCities } from "../util/Embedded";
 
 const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
 
@@ -102,7 +103,9 @@ export function loadWorldCityIndex(
   loading = (async () => {
     let cities: WorldCity[] = [];
     try {
-      const text = await readText(`${pluginDataPath()}/worldcities.json`);
+      const file = await readText(`${pluginDataPath()}/worldcities.json`);
+      // data/ 缺失（官方安装）→ 内联兜底；文件存在则优先文件（可自行更新）
+      const text = file ?? embeddedWorldCities();
       cities = text ? (JSON.parse(text) as WorldCity[]) : [];
     } catch (e) {
       // 数据文件损坏 → 空库降级（不抛出，允许下次重试加载）
