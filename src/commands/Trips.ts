@@ -3,6 +3,10 @@ import type AtlasPlugin from "../main";
 import { ensureFolder, num, str, todayISO } from "../util/File";
 import { stripSuffix } from "../model/Coverage";
 import { readTrackDayProps } from "./CoverageReport";
+import type { City } from "../model/City";
+import { readElevation } from "../model/Elevation";
+import { tripNote, TRIP_PERSONAL, type TripDayInfo } from "../model/TripNote";
+import { saveTravelNote } from "../util/TravelNote";
 
 /**
  * 旅程实体：把连续的活动日（有轨迹/有到访）聚合成一次"旅程"，生成笔记。
@@ -26,40 +30,6 @@ export function clusterTripDays(dates: string[], gapDays = 2): string[][] {
   return trips;
 }
 
-/** 交通方式 → emoji（逐日摘要用） */
-const MODE_EMOJI: Record<string, string> = {
-  步行: "🚶", 骑行: "🚴", 驾车: "🚗", 高铁: "🚄", 飞机: "✈️", 公交: "🚌", 地铁: "🚇", 火车: "🚆", 未知: "🧭",
-};
-
-/** "驾车×1 + 步行×2" → "🚗 🚶🚶" */
-function transportEmoji(summary: string): string {
-  if (!summary || summary === "无路径") return "";
-  return summary
-    .split(" + ")
-    .map((part) => {
-      const m = part.match(/^(\D+)(?:×(\d+))?$/);
-      if (!m) return part;
-      const emoji = MODE_EMOJI[m[1].trim()] ?? "";
-      return emoji.repeat(Math.max(1, Number(m[2] ?? 1)));
-    })
-    .join(" ");
-}
-
-const WEEKDAY = ["周日", "周一", "周二", "周三", "周四", "周五", "周六"];
-const weekdayOf = (date: string): string => {
-  const d = new Date(date + "T12:00:00");
-  return Number.isNaN(d.getTime()) ? "" : WEEKDAY[d.getDay()];
-};
-
-interface TripDayInfo {
-  km: number;
-  transport: string;
-  trips: number;
-  stays: number;
-  avgKmh: number;
-  maxKmh: number;
-}
-
 export class TripsCommand {
   constructor(private plugin: AtlasPlugin) {}
 
@@ -74,13 +44,14 @@ export class TripsCommand {
         stays: num(p.stays),
         avgKmh: num(p.avgKmh),
         maxKmh: num(p.maxKmh),
+        elev: readElevation(p.elev),
       });
     }
-    const dayCities = new Map<string, string[]>();
+    const dayCities = new Map<string, City[]>();
     for (const c of [...this.plugin.db.cities, ...this.plugin.db.places]) {
       for (const d of c.visitDates) {
         const list = dayCities.get(d) ?? [];
-        list.push(stripSuffix(c.name));
+        list.push(c);
         dayCities.set(d, list);
       }
     }
@@ -92,7 +63,7 @@ export class TripsCommand {
       .sort();
     const activityDays = allDays.filter((d) => {
       const cs = [...(dayCities.get(d) ?? [])];
-      if (cs.some((c) => stripSuffix(c) !== homeKey)) return true;
+      if (cs.some((c) => stripSuffix(c.name) !== homeKey)) return true;
       // 家门口的日子（只到访常用地点）不算旅程——哪怕绕家跑了 5km
       if (cs.length) return false;
       // 当天完全没有城市数据（荒野/海上轨迹）时按里程兜底
@@ -105,63 +76,23 @@ export class TripsCommand {
 
     const trips = clusterTripDays(activityDays, 2);
     let created = 0;
-    let skipped = 0;
+    let revised = 0;
     await ensureFolder(this.plugin.app, `${this.plugin.settings.travelFolder}/旅程`);
-    const elevFolder = `${this.plugin.settings.travelFolder}/轨迹/海拔`;
+    const diaryLinks = new Map(this.plugin.app.vault.getMarkdownFiles()
+      .filter((f) => /^\d{4}-\d{2}-\d{2}$/.test(f.basename))
+      .map((f) => [f.basename, f.path]));
     for (const days of trips) {
       const start = days[0];
-      const end = days[days.length - 1];
       const cities: string[] = [];
-      for (const d of days) for (const c of dayCities.get(d) ?? []) if (!cities.includes(c)) cities.push(c);
-      const km = Math.round(days.reduce((n, d) => n + (dayInfo.get(d)?.km ?? 0), 0) * 10) / 10;
-      // 命名：单城用城市名，多城用 起→终
+      for (const d of days) for (const c of dayCities.get(d) ?? []) if (!cities.includes(stripSuffix(c.name))) cities.push(stripSuffix(c.name));
       const name = cities.length === 1 ? cities[0] : cities.length ? `${cities[0]} → ${cities[cities.length - 1]}` : "途中有轨迹";
       const path = `${this.plugin.settings.travelFolder}/旅程/${start} ${name}.md`;
-      if (this.plugin.app.vault.getAbstractFileByPath(path)) {
-        skipped++;
-        continue;
-      }
-      // 返程判定：多日旅程首末两天到访同一座非常驻城市 → 末日是回程（D 标题不变，概览加返程行）
-      const endCities = dayCities.get(end) ?? [];
-      const isReturnTrip =
-        days.length > 1 &&
-        (dayCities.get(start) ?? []).some((c) => c !== homeKey && endCities.includes(c));
-      const cityLinks = cities.map((c) => `[[${c}]]`).join(" · ");
-      const frontmatter = [
-        "---",
-        `type: trip`,
-        `start: ${start}`,
-        `end: ${end}`,
-        `days: ${days.length}`,
-        `cities: ${cities.length}`,
-        `km: ${km}`,
-        `updated: ${todayISO()}`,
-        "cssclasses: atlas-trip",
-        "---",
-        "",
-      ];
-      const body: string[] = [`# 🧭 ${name}`, ""];
-      body.push("> [!summary] 行程概览", `> **${days.length} 天** · **${cities.length}** 座城市 · **≈ ${km} km**`, `> ${start} — ${end}`);
-      if (isReturnTrip) body.push(`> ↩️ 返程：${end}`);
-      body.push("");
-      if (cities.length) body.push(`## 🏙️ 足迹城市`, "", cityLinks, "");
-      body.push("## 📅 逐日记录", "");
-      days.forEach((d, di) => {
-        const info = dayInfo.get(d);
-        const emoji = transportEmoji(info?.transport ?? "");
-        const speed = info?.avgKmh ? ` · 均 ${info.avgKmh} km/h（峰 ${info.maxKmh}）` : "";
-        const stayTxt = info?.stays ? ` · 停留 ${info.stays} 次` : "";
-        body.push(`### D${di + 1} · ${d}（${weekdayOf(d)}）`, "");
-        body.push(`- ${emoji || "🧭 无路径记录"}${info ? ` · ${info.km} km${speed}${stayTxt}` : ""}`);
-        const dayCs = [...new Set(dayCities.get(d) ?? [])];
-        if (dayCs.length) body.push(`- 📍 ${dayCs.map((c) => `[[${c}]]`).join(" · ")}`);
-        // 海拔剖面：导入时生成过该日 SVG 才嵌入（用户可能未开海拔功能，须先确认存在）
-        if (this.plugin.app.vault.getAbstractFileByPath(`${elevFolder}/${d}.svg`)) body.push("", `![[${d}.svg]]`);
-        body.push("");
-      });
-      await this.plugin.app.vault.create(path, [...frontmatter, ...body].join("\n"));
-      created++;
+      const existed = !!this.plugin.app.vault.getAbstractFileByPath(path);
+      await saveTravelNote(this.plugin.app, path,
+        tripNote(name, days, dayInfo, dayCities, todayISO(), diaryLinks), TRIP_PERSONAL);
+      if (existed) revised++;
+      else created++;
     }
-    new Notice(`旅程笔记：新建 ${created} 个、已存在跳过 ${skipped} 个（Travel/旅程/）`);
+    new Notice(`旅程笔记：新建 ${created} 个、更新或另存新版 ${revised} 个（个人记录保留）`);
   }
 }

@@ -5,9 +5,11 @@ import {
   embeddedChinaAdmin2Lo,
   embeddedJpnAdmin2Lo,
 } from "../util/Embedded";
-// 国家级边界随构建内联（约 0.8MB）。省/市级大文件经 util/Embedded 惰性内联——
+// 国家级边界随构建内联（约 0.8MB）。省/市级简化数据经 util/Embedded 内联、按需解析。
 // 官方渠道安装只分发 main.js/manifest/styles 三个文件，全部内联后无 data/ 也功能完整
 import countriesEmbedded from "../../data/countries.geojson";
+import { applyChinaCartography } from "./ChinaBoundary";
+import { loadOfflineData } from "../util/OfflineData";
 
 /** 行政区划级别 */
 export type AdminLevel = "country" | "admin1" | "admin2";
@@ -18,7 +20,7 @@ export interface AdminProperties {
   nameLocal?: string;
   iso3?: string;
   adminCode?: string;
-  adcode?: number;
+  adcode?: number | string;
   level: AdminLevel;
   parent?: {
     name: string;
@@ -45,11 +47,7 @@ async function readVaultFile(path: string): Promise<string | null> {
       const exists = await adapter.exists(path);
       if (exists) {
         return await adapter.read(path);
-      } else {
-        console.warn(`Atlas: File not found: ${path}`);
       }
-    } else {
-      console.warn("Atlas: App instance or vault adapter not available");
     }
   } catch (e) {
     console.error(`Atlas: Failed to read ${path}:`, e);
@@ -65,6 +63,7 @@ export async function loadAdminGeoJson(
   countryIso3?: string,
   lod: "hi" | "lo" = "hi"
 ): Promise<AdminGeoJson> {
+  if (level === "admin2") countryIso3 = (countryIso3 || "CHN").toUpperCase();
   const cacheKey = `${level}|${countryIso3 || ""}|${lod}`;
   
   if (geoJsonCache.has(cacheKey)) {
@@ -89,34 +88,25 @@ export async function loadAdminGeoJson(
     default:
       return emptyGeoJson();
   }
-  let text = await readVaultFile(filePath);
-  if (!text && lod === "lo") {
-    // 简化版缺失（旧数据目录）→ 回退全精度
-    filePath = filePath.replace(".lo.geojson", ".geojson");
-    text = await readVaultFile(filePath);
-  }
-  if (!text) {
-    // data/ 缺失（官方安装）或该精度文件缺失 → 内置 lo 兜底（避免空集覆盖渲染层）
-    if (level === "country") text = countriesEmbedded;
-    else if (level === "admin1") text = embeddedAdmin1Lo();
-    else if (level === "admin2" && countryIso3 === "CHN") text = embeddedChinaAdmin2Lo();
-    else if (level === "admin2" && countryIso3 === "JPN") text = embeddedJpnAdmin2Lo();
-  }
-  
-  try {
-    if (text) {
-      const data = JSON.parse(text) as AdminGeoJson;
-      normalizeFeatures(data, level);
-      geoJsonCache.set(cacheKey, data);
-      return data;
-    } else {
-      console.warn(`Atlas: No data returned for ${filePath}`);
-    }
-  } catch (e) {
-    console.error(`Atlas: Error loading ${level}:`, e);
-  }
-
-  return emptyGeoJson();
+  const paths = [filePath];
+  if (level !== "country") paths.push(lod === "lo"
+    ? filePath.replace(".lo.geojson", ".geojson")
+    : filePath.replace(".geojson", ".lo.geojson"));
+  const embedded = level === "country" ? () => countriesEmbedded
+    : level === "admin1" ? embeddedAdmin1Lo
+    : countryIso3 === "CHN" ? embeddedChinaAdmin2Lo
+    : countryIso3 === "JPN" ? embeddedJpnAdmin2Lo : undefined;
+  const data = await loadOfflineData(paths, readVaultFile, embedded, (text) => {
+    const data = JSON.parse(text) as AdminGeoJson;
+    if (data?.type !== "FeatureCollection" || !Array.isArray(data.features) || !data.features.length ||
+        data.features.some((f) => f?.type !== "Feature" || !f.geometry ||
+          !["Polygon", "MultiPolygon"].includes(f.geometry.type))) throw new Error("无有效行政区划要素");
+    normalizeFeatures(data, level);
+    data.features = applyChinaCartography(data.features, level, countryIso3);
+    return data;
+  });
+  if (data) geoJsonCache.set(cacheKey, data);
+  return data ?? emptyGeoJson();
 }
 
 /**
@@ -138,7 +128,7 @@ interface RawAdminProps {
   sov_a3?: string;
   iso_a2?: string;
   adm1_code?: string;
-  adcode?: number;
+  adcode?: number | string;
   parent?: { name?: string; adcode?: number; code?: string | number };
   center?: [number, number];
   centroid?: [number, number];
@@ -212,8 +202,10 @@ export function getCentroid(feature: AdminFeature): [number, number] | null {
 
 function computeCentroid(feature: AdminFeature): [number, number] | null {
   const props = feature.properties;
-  if (props?.centroid) return props.centroid;
-  if (props?.center) return props.center;
+  const usable = (p: [number, number] | undefined): p is [number, number] =>
+    !!p && p.length === 2 && p.every(Number.isFinite) && Math.abs(p[0]) <= 180 && Math.abs(p[1]) <= 90;
+  if (usable(props?.centroid)) return props.centroid;
+  if (usable(props?.center)) return props.center;
 
   if (!feature.geometry) return null;
 
@@ -224,9 +216,9 @@ function computeCentroid(feature: AdminFeature): [number, number] | null {
     let maxArea = 0;
     let maxCoords: [number, number][] = [];
     for (const poly of feature.geometry.coordinates) {
-      const ring = poly[0] as [number, number][];
+      const ring = (poly[0] ?? []) as [number, number][];
       const area = calculatePolygonArea(ring);
-      if (area > maxArea) {
+      if (ring.length && (area > maxArea || !maxCoords.length)) {
         maxArea = area;
         maxCoords = ring;
       }
@@ -236,13 +228,16 @@ function computeCentroid(feature: AdminFeature): [number, number] | null {
   return null;
 }
 
-function calculateCentroid(coords: [number, number][]): [number, number] {
+function calculateCentroid(coords: [number, number][]): [number, number] | null {
   let sumX = 0, sumY = 0;
+  let count = 0;
   for (const [x, y] of coords) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
     sumX += x;
     sumY += y;
+    count++;
   }
-  return [sumX / coords.length, sumY / coords.length];
+  return count ? [sumX / count, sumY / count] : null;
 }
 
 function calculatePolygonArea(coords: [number, number][]): number {
@@ -436,13 +431,12 @@ export async function availableAdmin2Iso3(): Promise<string[]> {
     const listed = await adapter.list(dir);
     for (const full of listed.files) {
       const name = full.split("/").pop() ?? "";
-      const m = name.match(/^(.+?)_admin2\.geojson$/i);
+      const m = name.match(/^(.+?)_admin2(?:\.lo)?\.geojson$/i);
       if (!m) continue;
       out.add(ADMIN2_PREFIX_ISO3[m[1].toLowerCase()] ?? m[1].toUpperCase());
     }
     return [...out];
-  } catch (e) {
-    console.warn("Atlas: list admin2 datasets failed:", e);
+  } catch {
     return [...out]; // 目录不存在（官方安装）→ 仍返回内联基线
   }
 }

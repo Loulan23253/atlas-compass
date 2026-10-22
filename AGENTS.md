@@ -9,7 +9,11 @@ npm run build      # 生产构建 → main.js（esbuild.config.mjs production）
 npm run dev        # 监听模式
 npm run typecheck  # tsc --noEmit，等于 npx tsc --noEmit
 npm run lod        # 重生成 data/*.lo.geojson（道格拉斯-普克简化）
-npm run cells      # 重生成 data/chinacells.txt（中国国土 geohash5 格点）
+npm run cells      # 重生成 data/chinacells.txt（中国陆地 geohash5 格点）
+npm run china-boundaries -- 原始全国数据.json # 从 DataV 原始轮廓分离陆地与断续线符号
+npm run test:map   # 编辑器标记隐藏与中国地图数据回归
+npm run test:offline # 生产依赖清单、无 data/ 安装、损坏文件与本地覆盖回归
+npm run test:bundle # 精简发布包与原数据消费结果逐项比对
 ```
 
 ## 结构（src/）
@@ -36,6 +40,11 @@ npm run cells      # 重生成 data/chinacells.txt（中国国土 geohash5 格�
 | admin2/china_admin2(.lo).geojson | DataV GeoAtlas（容差 0.003°） | 源手动维护，.lo 用 `npm run lod` |
 | admin2/jpn_admin2(.lo).geojson | GADM 4.1（容差 0.003°） | 同上 |
 | worldcities.json | GeoNames cities15000 | 手动导出 |
-| chinacells.txt | Natural Earth CHN 边界栅格化 | `npm run cells` |
+| china-country.geojson | DataV 全国轮廓（剔除匹配的断续线符号，陆地坐标保留） | `npm run china-boundaries -- 原始全国数据.json` |
+| chinacells.txt | china-country.geojson 中国陆地栅格化（含台湾） | `npm run cells` |
 
 `.lo.geojson` 与 chinacells.txt 是可再生成的派生产物：源文件更新后运行对应脚本，脚本会打印前后体积/顶点数/格数对比，异常跳变（>±20%）需人工确认。
+
+中国制图使用 `map/ChinaBoundary.ts` 统一提供国家陆地轮廓、34 个省级行政区与独立断续线符号。不要把 `100000_JD` 当作城市/陆地，也不要让国家/省级视图与覆盖率报告退回缺少台湾的单一 Natural Earth CHN 要素。修改源数据后需同时检查地图三个层级、南海附图和 `chinacells.txt` 的分母。
+
+构建时 `scripts/compact-boundaries.mjs` 只裁剪插件不消费的 GeoJSON 属性，不修改源文件或边界坐标。新增地图属性消费时更新保留字段，并运行 `test:bundle` 确认优化前后加载结果一致。

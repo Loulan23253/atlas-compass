@@ -2,6 +2,7 @@ import { App, TFile } from "obsidian";
 import type { AtlasSettings } from "../settings";
 import type { City, CityKind } from "./City";
 import { hasCoords } from "./City";
+import { validDay } from "./TravelInsights";
 import { frontmatter, num, str, strList } from "../util/File";
 import { buildTravelRoute, type TravelRoute } from "./Route";
 
@@ -16,6 +17,8 @@ export interface AtlasStats {
   unlocated: number;
   routeKm: number;
   trackKm: number;
+  trackStays: number;
+  trackStayDays: number;
 }
 
 /** 日记里提到但还未建档的城市名 */
@@ -46,6 +49,9 @@ export class AtlasDB {
   route: TravelRoute = { stops: [], segments: [], totalKm: 0 };
   /** GPS 轨迹真实路径总里程（km，从 Travel/轨迹/*.geojson 的 km 属性汇总） */
   trackKm = 0;
+  /** GPS 停留片段，与独立 place 笔记无关；同一地点可以有多段。 */
+  trackStays = 0;
+  trackStayDays = 0;
   /** 日记里提到、还未建档的城市建议 */
   suggestions: CitySuggestion[] = [];
 
@@ -58,7 +64,8 @@ export class AtlasDB {
     const files = this.app.vault.getMarkdownFiles();
     const cities: City[] = [];
     const places: City[] = [];
-    const cityByName = new Map<string, City>();
+    const cityByName = new Map<string, City[]>();
+    const cityByNote = new Map<string, City>();
 
     for (const f of files) {
       if (!f.path.startsWith(this.settings.travelFolder + "/")) continue;
@@ -95,8 +102,11 @@ export class AtlasDB {
         places.push(entry);
       } else {
         cities.push(entry);
-        cityByName.set(name.toLowerCase(), entry);
       }
+      cityByNote.set(f.path, entry);
+      const sameName = cityByName.get(name.toLowerCase()) ?? [];
+      sameName.push(entry);
+      cityByName.set(name.toLowerCase(), sameName);
     }
 
     // Derive visits from diary links, without requiring manual frontmatter updates.
@@ -123,19 +133,25 @@ export class AtlasDB {
         this.diaryLinksCache.set(f.path, { mtime: f.stat.mtime, targets });
       }
       for (const target of targets) {
-        const city = cityByName.get(target.toLowerCase());
+        const resolved = this.app.metadataCache.getFirstLinkpathDest(target, f.path);
+        const exact = cityByNote.get(target.endsWith(".md") ? target : `${target}.md`);
+        const candidates = cityByName.get(target.toLowerCase()) ?? [];
+        // 按 Obsidian 实际链接归属；只有未解析的唯一名称才做兼容回退。
+        const city = resolved ? cityByNote.get(resolved.path)
+          : exact ?? (candidates.length === 1 ? candidates[0] : undefined);
         if (!city) {
+          if (resolved || candidates.length > 1) continue;
           if (!pending.has(target)) pending.set(target, new Set());
           pending.get(target)!.add(f.basename);
           continue;
         }
-        if (!derived.has(city.name)) derived.set(city.name, new Set());
-        derived.get(city.name)!.add(f.basename);
+        if (!derived.has(city.note)) derived.set(city.note, new Set());
+        derived.get(city.note)!.add(f.basename);
       }
     }
 
-    for (const city of cities) {
-      const d = derived.get(city.name);
+    for (const city of [...cities, ...places]) {
+      const d = derived.get(city.note);
       if (d && d.size) {
         const dates = [...new Set([...city.visitDates, ...d])].sort();
         city.visitDates = dates;
@@ -150,7 +166,7 @@ export class AtlasDB {
     this.places = places.sort(byCountryName);
 
     this.route = buildTravelRoute([...cities, ...places]);
-    this.trackKm = Math.round(await this.sumTrackKm(files));
+    this.trackKm = Math.round(await this.sumTrackKm(this.app.vault.getFiles()));
 
     // 未建档建议：排除日期命名（日记互链）、附件类链接，以及仓库中已有同名笔记的链接
     this.suggestions = [...pending.entries()]
@@ -171,24 +187,39 @@ export class AtlasDB {
   private async sumTrackKm(files: TFile[]): Promise<number> {
     const folder = `${this.settings.travelFolder}/轨迹/`;
     const trackFiles = files.filter((f) => f.path.startsWith(folder) && f.extension === "geojson");
-    if (!trackFiles.length) return 0;
+    if (!trackFiles.length) {
+      this.trackStays = 0;
+      this.trackStayDays = 0;
+      this.trackKmSig = "";
+      this.trackKmCache = 0;
+      return 0;
+    }
 
     const sig = trackFiles.map((f) => `${f.path}:${f.stat.mtime}`).sort().join("|");
     if (sig === this.trackKmSig) return this.trackKmCache;
 
     let total = 0;
+    let stays = 0;
+    const stayDates = new Set<string>();
     for (const f of trackFiles) {
       try {
         const geo = JSON.parse(await this.app.vault.adapter.read(f.path)) as {
-          features?: Array<{ properties?: { km?: unknown } }>;
+          features?: Array<{ properties?: { km?: unknown; stays?: unknown } }>;
         } | null;
         total += Number(geo?.features?.[0]?.properties?.km) || 0;
+        const count = geo?.features?.[0]?.properties?.stays;
+        if (typeof count === "number" && Number.isSafeInteger(count) && count > 0) {
+          stays += count;
+          if (validDay(f.basename)) stayDates.add(f.basename);
+        }
       } catch {
         // 单个文件损坏时跳过，不影响其余
       }
     }
     this.trackKmSig = sig;
     this.trackKmCache = total;
+    this.trackStays = stays;
+    this.trackStayDays = stayDates.size;
     return total;
   }
 
@@ -210,6 +241,8 @@ export class AtlasDB {
       unlocated,
       routeKm: Math.round(this.route.totalKm),
       trackKm: Math.round(this.trackKm),
+      trackStays: this.trackStays,
+      trackStayDays: this.trackStayDays,
     };
   }
 }

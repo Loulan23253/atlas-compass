@@ -6,8 +6,13 @@
     "build": "node esbuild.config.mjs production",
     "dev": "node esbuild.config.mjs",
     "typecheck": "tsc --noEmit",
+    "test:notes": "node scripts/test-travel-notes.mjs",
     "lod": "node scripts/generate-lod.mjs",
-    "cells": "node scripts/generate-cells.mjs"
+    "cells": "node scripts/generate-cells.mjs",
+    "china-boundaries": "node scripts/generate-china-boundary.mjs",
+    "test:map": "node scripts/test-cartography.mjs",
+    "test:offline": "node scripts/test-offline-data.mjs",
+    "test:bundle": "node scripts/test-bundle-size.mjs"
   },
   "dependencies": {
     "leaflet": "^1.9.4"
@@ -16,6 +21,8 @@
     "@types/leaflet": "^1.9.15",
     "esbuild": "^0.24.2",
     "obsidian": "^1.7.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "@codemirror/state": "6.5.0",
+    "@codemirror/view": "6.38.6"
   }
 }

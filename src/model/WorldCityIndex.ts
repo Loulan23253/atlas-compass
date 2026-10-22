@@ -30,6 +30,7 @@ interface WorldCityHit {
 
 import { pluginDataPath } from "../util/DataPath";
 import { embeddedWorldCities } from "../util/Embedded";
+import { loadOfflineData } from "../util/OfflineData";
 
 const BASE32 = "0123456789bcdefghjkmnpqrstuvwxyz";
 
@@ -101,17 +102,15 @@ export function loadWorldCityIndex(
   if (cache) return Promise.resolve(cache);
   if (loading) return loading;
   loading = (async () => {
-    let cities: WorldCity[] = [];
-    try {
-      const file = await readText(`${pluginDataPath()}/worldcities.json`);
-      // data/ 缺失（官方安装）→ 内联兜底；文件存在则优先文件（可自行更新）
-      const text = file ?? embeddedWorldCities();
-      cities = text ? (JSON.parse(text) as WorldCity[]) : [];
-    } catch (e) {
-      // 数据文件损坏 → 空库降级（不抛出，允许下次重试加载）
-      console.error("Atlas: worldcities.json 解析失败，世界城市兜底停用:", e);
-      cities = [];
-    }
+    const cities = await loadOfflineData([`${pluginDataPath()}/worldcities.json`], readText, embeddedWorldCities, (text) => {
+      const rows = JSON.parse(text) as WorldCity[];
+      if (!Array.isArray(rows) || !rows.length || rows.some((c) => !c ||
+          typeof c.n !== "string" || !c.n || typeof c.z !== "string" || typeof c.c !== "string" ||
+          !Number.isFinite(c.la) || Math.abs(c.la) > 90 || !Number.isFinite(c.lo) || Math.abs(c.lo) > 180 ||
+          !/^[0123456789bcdefghjkmnpqrstuvwxyz]{5}$/.test(c.g5) ||
+          !/^[0123456789bcdefghjkmnpqrstuvwxyz]{3}$/.test(c.g3))) throw new Error("世界城市库格式错误");
+      return rows;
+    }) ?? [];
     const byG5 = new Map<string, number[]>();
     const byG3 = new Map<string, number[]>();
     cities.forEach((c, i) => {
@@ -128,7 +127,7 @@ export function loadWorldCityIndex(
     }
     cache = { cities, byG5, byG3 };
     return cache;
-  })();
+  })().finally(() => { loading = null; });
   return loading;
 }
 

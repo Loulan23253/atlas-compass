@@ -10,13 +10,19 @@ import { YearReviewCommand } from "./commands/YearReview";
 import { ImportHistoryModal, TrackFilePickerModal } from "./commands/TrackTools";
 import { TripsCommand } from "./commands/Trips";
 import { PhotoFootprintCommand } from "./commands/Photos";
+import { UpgradeTemplatesCommand } from "./commands/UpgradeTemplates";
+import { CityJournalBlock } from "./ui/CityJournal";
+import { CountryJournalBlock } from "./ui/CountryJournal";
+import { registerYearCalendar } from "./ui/YearCalendar";
 import { setDataRoot } from "./util/DataPath";
+import { hideGeneratedMarkers } from "./editor/GeneratedMarkers";
 
 export default class AtlasPlugin extends Plugin {
   settings: AtlasSettings = DEFAULT_SETTINGS;
   db!: AtlasDB;
   private scanTimer: number | null = null;
   private suppressScan = 0;
+  private journalRefreshers = new Set<() => void>();
 
   async onload(): Promise<void> {
     // 注入 App 与插件安装目录（data/ 资源按 manifest.dir 定位，禁止硬编码 .obsidian）
@@ -26,6 +32,15 @@ export default class AtlasPlugin extends Plugin {
     this.settings = { ...DEFAULT_SETTINGS, ...loaded };
 
     this.db = new AtlasDB(this.app, this.settings);
+    this.registerEditorExtension(hideGeneratedMarkers);
+
+    this.registerMarkdownCodeBlockProcessor("atlas-city", (_source, el, ctx) => {
+      ctx.addChild(new CityJournalBlock(el, this, ctx.sourcePath));
+    });
+    this.registerMarkdownCodeBlockProcessor("atlas-country", (_source, el, ctx) => {
+      ctx.addChild(new CountryJournalBlock(el, this, ctx.sourcePath));
+    });
+    registerYearCalendar(this);
 
     this.registerView(VIEW_TYPE_ATLAS, (leaf) => new AtlasView(leaf, this));
 
@@ -33,7 +48,7 @@ export default class AtlasPlugin extends Plugin {
     this.addCommand({ id: "open-atlas", name: "打开 Atlas 旅行地图", callback: () => this.activateView() });
     this.addCommand({ id: "add-city", name: "添加城市", callback: () => new AddCityCommand(this).run() });
     this.addCommand({ id: "add-country", name: "添加国家", callback: () => new AddCountryCommand(this).run() });
-    this.addCommand({ id: "import-cities", name: "导入城市（CSV / TSV / JSON）", callback: () => new ImportModal(this).open() });
+    this.addCommand({ id: "import-cities", name: "导入数据（CSV / GPX / TSV / JSON）", callback: () => new ImportModal(this).open() });
     this.addCommand({ id: "export-cities", name: "导出城市为 JSON", callback: async () => new ExportCommand(this).run() });
     this.addCommand({
       id: "land-coverage-report",
@@ -41,6 +56,7 @@ export default class AtlasPlugin extends Plugin {
       callback: () => new CoverageReportCommand(this).run(),
     });
     this.addCommand({ id: "year-review", name: "生成年度回顾", callback: () => new YearReviewCommand(this).run() });
+    this.addCommand({ id: "all-year-reviews", name: "生成全部年度回顾与索引", callback: () => new YearReviewCommand(this).runAll() });
     this.addCommand({
       id: "fix-transport-mode",
       name: "修正行程交通方式",
@@ -49,6 +65,8 @@ export default class AtlasPlugin extends Plugin {
     this.addCommand({ id: "import-history", name: "查看导入历史", callback: () => new ImportHistoryModal(this).open() });
     this.addCommand({ id: "generate-trips", name: "生成旅程笔记", callback: () => new TripsCommand(this).run() });
     this.addCommand({ id: "photo-footprint", name: "照片点亮足迹", callback: () => new PhotoFootprintCommand(this).run() });
+    this.addCommand({ id: "upgrade-travel-templates", name: "升级城市笔记为旅行手记", callback: () => new UpgradeTemplatesCommand(this).run() });
+    this.addCommand({ id: "enrich-travel-templates", name: "丰富现有旅行手记栏目", callback: () => new UpgradeTemplatesCommand(this).run(true) });
     this.addCommand({
       id: "scan-cities",
       name: "重新扫描城市",
@@ -61,6 +79,7 @@ export default class AtlasPlugin extends Plugin {
     this.addSettingTab(new AtlasSettingTab(this.app, this));
 
     await this.db.scan();
+    this.journalRefreshers.forEach((refresh) => refresh());
 
     this.registerEvent(this.app.vault.on("create", (file) => this.onFileEvent(file)));
     this.registerEvent(this.app.vault.on("modify", (file) => this.onFileEvent(file)));
@@ -90,7 +109,8 @@ export default class AtlasPlugin extends Plugin {
   private isRelevant(file: TAbstractFile | null): boolean {
     if (!file?.path) return false;
     // 日记范围为全库：任何 markdown 变更都可能影响日记链接的派生到访
-    return file.path.endsWith(".md");
+    return file.path.endsWith(".md") ||
+      (file.path.startsWith(`${this.settings.travelFolder}/轨迹/`) && file.path.endsWith(".geojson"));
   }
 
   /** 全量重扫城市库并刷新所有视图（命令、防抖定时器、设置保存共用）。 */
@@ -128,10 +148,16 @@ export default class AtlasPlugin extends Plugin {
   }
 
   refreshViews(): void {
+    this.journalRefreshers.forEach((refresh) => refresh());
     this.app.workspace.getLeavesOfType(VIEW_TYPE_ATLAS).forEach((leaf) => {
       const v = leaf.view;
       if (v instanceof AtlasView) v.refresh();
     });
+  }
+
+  registerJournalRefresh(refresh: () => void): () => void {
+    this.journalRefreshers.add(refresh);
+    return () => this.journalRefreshers.delete(refresh);
   }
 
   async saveSettings(): Promise<void> {

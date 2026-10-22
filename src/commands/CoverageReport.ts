@@ -1,10 +1,14 @@
 import { Notice, TFile, type App } from "obsidian";
-import type { Geometry } from "geojson";
 import type AtlasPlugin from "../main";
 import { loadChinaCells } from "../model/LandCoverage";
 import { geohashBounds } from "../model/TrackClean";
 import { loadAdminGeoJson, findCityFeature } from "../map/GeoJsonLoader";
 import { ensureFolder, todayISO } from "../util/File";
+import { writingPrompt } from "../model/JournalSections";
+import { saveTravelNote } from "../util/TravelNote";
+import { noteLink, tableText } from "../model/NoteFormat";
+import { coverageGrowth, validDay } from "../model/TravelInsights";
+import { buildCoverageMapSvg } from "../model/CoverageMap";
 
 /**
  * 读取 Travel/轨迹/*.geojson 每天的首个要素属性（覆盖率/旅程报告共用）。
@@ -24,7 +28,7 @@ export async function readTrackDayProps(
         | { features?: Array<{ properties?: Record<string, unknown> }> }
         | null;
       const p = geo?.features?.[0]?.properties;
-      out.set(f.basename, p && typeof p === "object" ? p : {});
+      if (p && typeof p === "object" && !Array.isArray(p) && Object.keys(p).length) out.set(f.basename, p);
     } catch {
       // 跳过损坏文件
     }
@@ -32,78 +36,9 @@ export async function readTrackDayProps(
   return out;
 }
 
-/** 报告笔记落盘：已存在则覆写，否则创建（覆盖率/年度回顾/照片足迹共用） */
-export async function writeReportFile(app: App, path: string, content: string): Promise<void> {
-  const existing = app.vault.getAbstractFileByPath(path);
-  if (existing) await app.vault.adapter.write(path, content);
-  else await app.vault.create(path, content);
-}
-
-// ---- 覆盖率地图 SVG（点亮格 + 中国轮廓，失败静默降级为不嵌入）----
-
-/** 地图经纬窗口与画布：视野覆盖中国范围（lng 73→136，lat 18→54） */
-const MAP_LNG0 = 73;
-const MAP_LNG1 = 136;
-const MAP_LAT0 = 18;
-const MAP_LAT1 = 54;
-const MAP_W = 720;
-/** 等经纬投影按中纬度（≈36°N）校正纵横比：H = W·(36/63)/cos36° ≈ 508 */
-const MAP_H = 508;
-/** 点亮格最小绘制尺寸（px）：真实格在全国视野下仅 ≈0.5px，抬到小方点保证可见 */
-const CELL_DOT_PX = 2.4;
-
-/** 提取面要素的所有外环（忽略内环孔洞），非面要素返回空数组 */
-function polygonOuterRings(geom: Geometry | null): number[][][] {
-  if (geom?.type === "Polygon") return [geom.coordinates[0]];
-  if (geom?.type === "MultiPolygon") return geom.coordinates.map((poly) => poly[0]);
-  return [];
-}
-
-/**
- * 生成覆盖率地图 SVG 文本：橙点亮格叠在灰色中国轮廓上（countries.geojson 的 CHN 要素外环）。
- * 线性映射 lng∈[73,136]→x∈[0,W]、lat∈[18,54]→y 翻转∈[H,0]；只画点亮格（几百个），体积可控。
- * 无数据/无轮廓/任何异常都返回 null，调用方静默跳过。
- */
-async function buildCoverageMapSvg(plugin: AtlasPlugin, litCells: Set<string>): Promise<string | null> {
-  try {
-    if (!litCells.size) return null;
-    const geo = await loadAdminGeoJson("country", undefined);
-    const chn = geo.features.find((f) => f.properties?.iso3 === "CHN") ?? null;
-    const rings = polygonOuterRings(chn?.geometry ?? null);
-    const px = (lng: number): number => ((lng - MAP_LNG0) / (MAP_LNG1 - MAP_LNG0)) * MAP_W;
-    const py = (lat: number): number => ((MAP_LAT1 - lat) / (MAP_LAT1 - MAP_LAT0)) * MAP_H;
-    // 轮廓：一条 path 承载全部外环子路径（多面 MultiPolygon 都要画）
-    const d = rings
-      .map((ring) =>
-        ring.map(([lng, lat], i) => `${i ? "L" : "M"}${px(lng).toFixed(1)},${py(lat).toFixed(1)}`).join("") + "Z",
-      )
-      .join("");
-    if (!d) return null;
-    // 点亮格：geohash 四至映射成矩形；尺寸不足 CELL_DOT_PX 时抬到可见、中心仍对准格子
-    const rects: string[] = [];
-    for (const c of litCells) {
-      const b = geohashBounds(c);
-      if (b.maxLng < MAP_LNG0 || b.minLng > MAP_LNG1 || b.maxLat < MAP_LAT0 || b.minLat > MAP_LAT1) continue;
-      const cx = (px(b.minLng) + px(b.maxLng)) / 2;
-      const cy = (py(b.minLat) + py(b.maxLat)) / 2;
-      const w = Math.max(px(b.maxLng) - px(b.minLng), CELL_DOT_PX);
-      const h = Math.max(py(b.minLat) - py(b.maxLat), CELL_DOT_PX);
-      rects.push(
-        `<rect x="${(cx - w / 2).toFixed(1)}" y="${(cy - h / 2).toFixed(1)}" width="${w.toFixed(1)}" height="${h.toFixed(1)}"/>`,
-      );
-    }
-    return [
-      `<svg xmlns="http://www.w3.org/2000/svg" width="${MAP_W}" height="${MAP_H}" viewBox="0 0 ${MAP_W} ${MAP_H}">`,
-      `  <rect width="${MAP_W}" height="${MAP_H}" fill="none"/>`,
-      `  <path d="${d}" fill="#e9ecef" stroke="#adb5bd" stroke-width="1" stroke-linejoin="round"/>`,
-      `  <g fill="#f76707">${rects.join("")}</g>`,
-      `  <rect x="10" y="${MAP_H - 18}" width="11" height="11" rx="2" fill="#f76707"/>`,
-      `  <text x="27" y="${MAP_H - 8}" font-size="12" fill="#868e96">已点亮 ${litCells.size.toLocaleString()} 格</text>`,
-      "</svg>",
-    ].join("\n");
-  } catch {
-    return null;
-  }
+/** 报告手记落盘：保护个人文字，旧版笔记另存新版。 */
+export async function writeReportFile(app: App, path: string, content: string): Promise<string> {
+  return saveTravelNote(app, path, content);
 }
 
 /** 生成国土覆盖率报告：汇总 Travel/轨迹/*.geojson 里点亮的中国 5 位 geohash 格，
@@ -129,11 +64,12 @@ export class CoverageReportCommand {
 
     const litAll = new Set<string>();
     const litByYear = new Map<string, Set<string>>();
-    let dayCount = 0;
+    const growth = coverageGrowth(props, china);
+    const dayCount = growth.length;
     for (const [date, p] of props) {
+      if (!validDay(date)) continue;
       const cells = Array.isArray(p.cells) ? p.cells.map(String) : [];
       if (!cells.length) continue;
-      dayCount++;
       const year = date.slice(0, 4);
       for (const c of cells) {
         if (!china.has(c)) continue;
@@ -148,13 +84,12 @@ export class CoverageReportCommand {
     }
 
     if (!china.size) {
-      new Notice("国土格点数据缺失（data/chinacells.txt），请检查插件 data 目录");
+      new Notice("内置国土格点加载失败，请重新安装完整的 Atlas 插件文件");
       return;
     }
     const total = china.size;
     const lit = litAll.size;
     const pct = ((lit / total) * 100).toFixed(4);
-    const bar = this.bar(lit / total, 40);
 
     // 省份分布：每个点亮格取中心做省级归属（admin1 简化版，网格索引加速）
     const provinceCells = new Map<string, number>();
@@ -164,7 +99,7 @@ export class CoverageReportCommand {
         const b = geohashBounds(c);
         const hit = findCityFeature(admin1, (b.minLng + b.maxLng) / 2, (b.minLat + b.maxLat) / 2);
         if (!hit) continue;
-        const name = (hit.properties as { name?: string })?.name ?? "未知";
+        const name = hit.properties?.nameLocal || hit.properties?.name || "未知";
         provinceCells.set(name, (provinceCells.get(name) ?? 0) + 1);
       }
     } catch {
@@ -180,13 +115,13 @@ export class CoverageReportCommand {
     let mapEmbed = "";
     if (lit) {
       try {
-        const svg = await buildCoverageMapSvg(this.plugin, litAll);
+        const svg = buildCoverageMapSvg(litAll);
         if (svg) {
           await ensureFolder(this.plugin.app, this.plugin.settings.travelFolder);
           const svgPath = `${this.plugin.settings.travelFolder}/覆盖率地图.svg`;
           if (this.plugin.app.vault.getAbstractFileByPath(svgPath)) await this.plugin.app.vault.adapter.write(svgPath, svg);
           else await this.plugin.app.vault.create(svgPath, svg);
-          mapEmbed = "![[覆盖率地图.svg]]";
+          mapEmbed = `!${noteLink(svgPath)}`;
         }
       } catch {
         // 地图生成/写盘失败 → 不嵌入，不影响报告本身
@@ -196,52 +131,68 @@ export class CoverageReportCommand {
     const lines: string[] = [
       "---",
       "type: coverage-report",
+      "tags: [travel, 中国]",
       `updated: ${todayISO()}`,
-      "cssclasses: atlas-coverage",
+      "cssclasses: [atlas-note, atlas-trip]",
       "---",
       "",
-      "# 🗺️ 中国国土覆盖率",
+      "# 走过的中国 · 足迹地图",
+      "",
+      `> [!abstract] 把走过的路留在地图上`,
+      `> ${dayCount} 天轨迹 · 点亮 **${lit.toLocaleString()}** 格 · 中国陆地格点覆盖率 **${pct}%**`,
       "",
       ...(mapEmbed ? [mapEmbed, ""] : []),
-      `> [!summary] 点亮 ${lit.toLocaleString()} / ${total.toLocaleString()} 格 · 覆盖率 ${pct}%`,
-      `> 格边长 ≈ 4.9km（5 位 geohash） · 统计 ${dayCount} 天轨迹`,
-      "",
-      "```",
-      `[${bar}] ${pct}%`,
-      "```",
-      "",
-      `🎯 ${milestoneText}`,
+      "> [!tip] 下一小步",
+      `> ${milestoneText}`,
       "",
     ];
+    if (growth.length) {
+      const latestYear = growth[growth.length - 1].date.slice(0, 4);
+      const recent = growth.filter((d) => d.date.startsWith(latestYear));
+      const fresh = recent.reduce((n, d) => n + d.fresh, 0);
+      const best = [...growth].sort((a, b) => b.fresh - a.fresh)[0];
+      lines.push("## 这张地图，怎样慢慢长大", "",
+        `- **最早的足迹**：${growth[0].date}，这是当前轨迹记录的起点。`,
+        `- **最近有记录的一年**：${latestYear} 年，在已有足迹之外首次点亮 **${fresh.toLocaleString()}** 格。`,
+        `- **开拓最多的一天**：${best.date}，首次点亮 **${best.fresh.toLocaleString()}** 格。`, "");
+      lines.push(`## ${latestYear} · 每月多走一点`, "", "| 月份 | 中国陆地轨迹日 | 首次点亮 |", "| --- | --- | --- |");
+      for (let month = 1; month <= 12; month++) {
+        const entries = recent.filter((d) => Number(d.date.slice(5, 7)) === month);
+        if (entries.length) lines.push(`| ${month} 月 | ${entries.length} | ${entries.reduce((n, d) => n + d.fresh, 0).toLocaleString()} 格 |`);
+      }
+      lines.push("");
+      const achieved = [100, 500, 1000, 5000, 10000].map((target) => ({ target, day: growth.find((d) => d.cumulative >= target) })).filter((m) => m.day);
+      if (achieved.length) {
+        lines.push("> [!tip]- 已走到的里程碑");
+        for (const milestone of achieved) lines.push(`> ${milestone.day!.date} · 累计点亮 ${milestone.target.toLocaleString()} 格`);
+        lines.push("");
+      }
+    }
     const years = [...litByYear.keys()].sort();
     if (years.length) {
-      lines.push("## 📅 按年累计", "", "| 年份 | 当年点亮 | 累计 | 累计率 |", "| --- | --- | --- | --- |");
+      lines.push("## 一年，又一年", "", "| 年份 | 当年走过 | 其中首次点亮 | 累计 | 累计覆盖率 |", "| --- | --- | --- | --- | --- |");
       const acc = new Set<string>();
       for (const y of years) {
         for (const c of litByYear.get(y)!) acc.add(c);
-        lines.push(`| ${y} | ${(litByYear.get(y)!.size).toLocaleString()} | ${acc.size.toLocaleString()} | ${((acc.size / total) * 100).toFixed(4)}% |`);
+        const fresh = growth.filter((d) => d.date.startsWith(y)).reduce((n, d) => n + d.fresh, 0);
+        lines.push(`| ${y} | ${(litByYear.get(y)!.size).toLocaleString()} | ${fresh.toLocaleString()} | ${acc.size.toLocaleString()} | ${((acc.size / total) * 100).toFixed(4)}% |`);
       }
       lines.push("");
     }
     if (provinceCells.size) {
-      lines.push("## 🗺️ 省份分布", "", "| 省份 | 点亮格 |", "| --- | --- |");
-      const provMax = Math.max(...provinceCells.values());
+      lines.push("## 足迹落在哪里", "", "| 省份 | 点亮格数 |", "| --- | --- |");
       for (const [name, n] of [...provinceCells.entries()].sort((a, b) => b[1] - a[1]).slice(0, 15)) {
-        const barN = "█".repeat(Math.max(1, Math.round((n / provMax) * 16)));
-        lines.push(`| ${name} | ${barN} ${n.toLocaleString()} |`);
+        lines.push(`| ${tableText(name)} | ${n.toLocaleString()} |`);
       }
       lines.push("");
     }
-    lines.push("> [!note]- 说明", "> 格点在导入 GPS 轨迹时点亮（按抽稀前的原始点计算），重新导入自动更新。");
+    lines.push("> [!note]- 这张地图怎样记录足迹", "> 按已导入 GPS 打点覆盖的中国陆地 geohash5 格点统计，并非精确的走过面积。格点大小随纬度变化；重新导入会更新记录。",
+      `> 本次以 ${total.toLocaleString()} 个陆地格点作为分母，包含台湾；断续线符号不参与陆地覆盖计算。`);
 
-    const path = `${this.plugin.settings.travelFolder}/国土覆盖率.md`;
     await ensureFolder(this.plugin.app, this.plugin.settings.travelFolder);
-    await writeReportFile(this.plugin.app, path, lines.join("\n"));
+    const path = await saveTravelNote(this.plugin.app, `${this.plugin.settings.travelFolder}/国土覆盖率.md`, lines.join("\n"),
+      "## 下一站的念头\n\n" + writingPrompt("从一小段路开始", "地图上哪一处空白让你想出发？可以挑一个周末够得着的目的地。", "想在那里做什么、和谁同行？把想法链接到城市或地点笔记，留出临时改变路线的余地。"));
     new Notice(`国土覆盖率 ${pct}%（已点亮 ${lit.toLocaleString()} 格），报告已写入 ${path}`);
   }
 
-  private bar(ratio: number, width: number): string {
-    const n = Math.round(ratio * width);
-    return "█".repeat(n) + "░".repeat(width - n);
-  }
 }

@@ -2,15 +2,16 @@ import { Notice, TFile } from "obsidian";
 import type AtlasPlugin from "../main";
 import { ensureFolder, todayISO } from "../util/File";
 import { stripSuffix } from "../model/Coverage";
-import { geohashEncode } from "../model/WorldCityIndex";
 import { mergeVisitDates } from "./Import";
-import { writeReportFile } from "./CoverageReport";
+import { saveTravelNote } from "../util/TravelNote";
 import { loadAdminGeoJson, findCityFeature, type AdminFeature } from "../map/GeoJsonLoader";
 import { parseExifGps } from "../util/Exif";
+import { photoNote, PHOTO_PERSONAL, type PhotoStoryPoint } from "../model/PhotoNote";
+import { validDay } from "../model/TravelInsights";
 
 /**
  * 照片点亮：
- * 扫描库内 JPEG 的 EXIF GPS 与拍摄时间 → 城市/格点 → 照片足迹报告 + 到访日期合并。
+ * 扫描库内 JPEG 的 EXIF GPS 与拍摄时间 → 照片手记 + 已建档地点到访日期合并。
  */
 
 interface PhotoPoint {
@@ -35,7 +36,7 @@ export class PhotoFootprintCommand {
       .filter(
         (f) =>
           f instanceof TFile &&
-          (f.extension === "jpg" || f.extension === "jpeg") &&
+          (f.extension.toLowerCase() === "jpg" || f.extension.toLowerCase() === "jpeg") &&
           !skipPrefixes.some((p) => f.path.startsWith(p)),
       );
     if (!photos.length) {
@@ -43,7 +44,7 @@ export class PhotoFootprintCommand {
       return;
     }
 
-    // 城市解析：admin2（多国）→ 世界城市库兜底
+    // 照片城市解析目前仅使用中国、日本的市级多边形。
     const datasets: { iso3: string; features: AdminFeature[] }[] = [];
     for (const iso3 of ["CHN", "JPN"]) {
       try {
@@ -53,11 +54,12 @@ export class PhotoFootprintCommand {
         continue;
       }
     }
-    const resolveCity = (lat: number, lng: number): string | null => {
+    const resolveCity = (lat: number, lng: number): { name: string; country: string } | null => {
       for (const ds of datasets) {
         const hit = findCityFeature(ds, lng, lat);
         if (!hit) continue;
-        return hit.properties?.name ?? null;
+        const name = hit.properties?.name;
+        return name ? { name, country: ds.iso3 === "CHN" ? "中国" : "日本" } : null;
       }
       return null; // 照片不落世界库（避免误报），报告里归"域外"
     };
@@ -89,70 +91,40 @@ export class PhotoFootprintCommand {
       return;
     }
 
-    // 聚合：城市 × 日期
-    const cityMap = new Map<string, { name: string; dates: Set<string>; files: string[] }>();
-    const cells = new Set<string>();
-    const years = new Map<string, number>();
-    for (const p of points) {
-      cells.add(geohashEncode(p.lat, p.lng, 5));
-      const city = resolveCity(p.lat, p.lng);
-      const key = city ?? "（域外/未识别）";
-      let e = cityMap.get(key);
-      if (!e) {
-        e = { name: key, dates: new Set(), files: [] };
-        cityMap.set(key, e);
-      }
-      e.files.push(p.file);
-      if (p.date) {
-        e.dates.add(p.date);
-        const y = p.date.slice(0, 4);
-        years.set(y, (years.get(y) ?? 0) + 1);
+    const story: PhotoStoryPoint[] = [];
+    const datesByNote = new Map<string, Set<string>>();
+    const normalizeCountry = (value: string): string => {
+      if (/^(中国|中國|中华人民共和国|china|chn)$/i.test(value.trim())) return "中国";
+      if (/^(日本|japan|jpn)$/i.test(value.trim())) return "日本";
+      return value.trim();
+    };
+    for (const point of points) {
+      const city = resolveCity(point.lat, point.lng);
+      const target = city ? [...this.plugin.db.cities, ...this.plugin.db.places].find((c) =>
+        stripSuffix(c.name) === stripSuffix(city.name) && normalizeCountry(c.country) === city.country) : undefined;
+      const date = point.date && validDay(point.date) ? point.date : null;
+      story.push({ file: point.file, date, location: city ? `${city.name} · ${city.country}` : null,
+        locationKey: city ? `${city.country}::${city.name}` : undefined, note: target?.note, country: city?.country });
+      if (target && date) {
+        const dates = datesByNote.get(target.note) ?? new Set<string>();
+        dates.add(date); datesByNote.set(target.note, dates);
       }
     }
-    // 点亮格数（有照片的格即点亮——照片也是足迹）
-
-    const ranked = [...cityMap.values()].sort((a, b) => b.files.length - a.files.length);
-    const lines: string[] = [
-      "---",
-      "type: photo-report",
-      `updated: ${todayISO()}`,
-      "cssclasses: atlas-trip",
-      "---",
-      "",
-      "# 📷 照片足迹",
-      "",
-      `> [!summary] 定位照片 ${points.length} 张 · 涉及 ${cityMap.size} 个地点`,
-      `> 无定位 ${noExif} 张 · EXIF 格点可与 GPS 覆盖率叠加`,
-      "",
-      "## 城市排行",
-      "",
-      "| 地点 | 照片数 | 到访日期 |",
-      "| --- | --- | --- |",
-    ];
-    for (const c of ranked.slice(0, 15)) {
-      const dates = [...c.dates].sort();
-      lines.push(`| ${stripSuffix(c.name)} | ${c.files.length} | ${dates.slice(0, 3).join("、")}${dates.length > 3 ? " 等" : ""} |`);
-    }
-    lines.push("", "## 按年分布", "", "```");
-    for (const y of [...years.keys()].sort()) lines.push(`${y}: ${"█".repeat(Math.min(40, Math.ceil((years.get(y)! / Math.max(...years.values())) * 24)))} ${years.get(y)}`);
-    lines.push("```", "", "> 照片位置来自 EXIF GPS（iPhone 相机默认开启）。报告由「照片点亮足迹」命令生成。");
-
-    const path = `${this.plugin.settings.travelFolder}/照片足迹.md`;
     await ensureFolder(this.plugin.app, this.plugin.settings.travelFolder);
-    await writeReportFile(this.plugin.app, path, lines.join("\n"));
+    const path = await saveTravelNote(this.plugin.app, `${this.plugin.settings.travelFolder}/照片足迹.md`,
+      photoNote(story, noExif, todayISO()), PHOTO_PERSONAL);
 
-    // 到访日期合并：有拍摄日的照片按城市并入 visitDates（复用 GPS 导入的合并逻辑）
     let merged = 0;
-    for (const [key, c] of cityMap) {
-      if (key === "（域外/未识别）" || !c.dates.size) continue;
-      const target = this.plugin.db.cities.find((x) => stripSuffix(x.name) === key) ?? this.plugin.db.places.find((x) => stripSuffix(x.name) === key);
-      if (!target) continue;
-      const newDates = [...c.dates].filter((d) => !target.visitDates.includes(d));
-      if (!newDates.length) continue;
-      if (await mergeVisitDates(this.plugin, target.note, newDates)) {
-        merged += newDates.length;
+    this.plugin.setSuppressScan(true);
+    try {
+      for (const [note, dates] of datesByNote) {
+        const target = [...this.plugin.db.cities, ...this.plugin.db.places].find((c) => c.note === note);
+        const newDates = [...dates].filter((d) => !target?.visitDates.includes(d));
+        if (newDates.length && await mergeVisitDates(this.plugin, note, newDates)) merged += newDates.length;
       }
-    }
-    new Notice(`照片足迹：${points.length} 张定位照片、${cityMap.size} 地点，报告已写入 ${path}` + (merged ? `；到访日期合并 ${merged} 条` : ""));
+    } finally { this.plugin.setSuppressScan(false); }
+    await this.plugin.db.scan();
+    this.plugin.refreshViews();
+    new Notice(`照片足迹：${points.length} 张定位照片、${new Set(story.filter((p) => p.location).map((p) => p.locationKey)).size} 个已识别地点，报告已写入 ${path}` + (merged ? `；到访日期合并 ${merged} 条` : ""));
   }
 }

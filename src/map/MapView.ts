@@ -9,6 +9,8 @@ import { stripSuffix } from "../model/Coverage";
 import { AIRPORTS, type Airport } from "../data/airports";
 import { distanceKm } from "../util/Geo";
 import { geohashBounds } from "../model/TrackClean";
+import { createTrackPopup, type TrackPopupData } from "../ui/TrackPopup";
+import { chinaBoundarySymbols } from "./ChinaBoundary";
 import {
   loadAdminGeoJson,
   getCentroid,
@@ -84,7 +86,7 @@ const MODE_COLORS: Record<number, string> = {
 /** 轨迹 GeoJSON 文件结构 */
 interface TrackGeoJson {
   features?: Array<{
-    properties?: {
+    properties?: TrackPopupData & {
       inferred?: boolean;
       cells?: string[];
       ts?: number[];
@@ -120,6 +122,7 @@ export class AtlasMap {
   map: L.Map;
   markers: L.Marker[] = [];
   selected: City | null = null;
+  private pendingFocus: (() => void) | null = null;
   onSelect: (c: City) => void;
 
   private routeLayer: L.LayerGroup | null = null;
@@ -127,6 +130,7 @@ export class AtlasMap {
   private routesVisible = true;
   private trackLayer: L.LayerGroup | null = null;
   private coverageLayer: L.LayerGroup | null = null;
+  private chinaBoundaryLayer: L.GeoJSON | null = null;
   private labelDebounce: number | null = null;
   private activePopupEl: HTMLElement | null = null;
   private minZoomObserver: ResizeObserver | null = null;
@@ -511,11 +515,17 @@ export class AtlasMap {
       this.showStatus("正在加载世界地图数据...");
       const countries = await loadAdminGeoJson("country");
       this.geoJsonData.set("country", countries);
+      // 断续线独立于缩放层级，国家/省/市视图切换时都保留。
+      this.map.createPane("atlas-boundary");
+      this.chinaBoundaryLayer = L.geoJSON(chinaBoundarySymbols(), {
+        pane: "atlas-boundary", interactive: false,
+        style: { color: "#455a64", weight: 1.2, opacity: 0.95, fillColor: "#455a64", fillOpacity: 0.8 },
+      }).addTo(this.map);
       // 启动只加载简化版（LOD）：解析快、内存省；高缩放时再懒加载全精度
       const admin1 = await loadAdminGeoJson("admin1", undefined, "lo");
       this.geoJsonData.set("admin1", admin1);
       if (!admin1.features.length) {
-        this.showStatus("省/市级数据缺失：把 data/ 文件夹复制到插件目录并重启 Obsidian（世界轮廓仍可浏览）");
+        this.showStatus("内置省级数据加载失败，请重新安装完整的 Atlas 插件文件");
       }
       const chinaAdmin2 = await loadAdminGeoJson("admin2", "CHN", "lo");
       if (chinaAdmin2.features.length) this.admin2Sets.set("CHN", chinaAdmin2);
@@ -588,7 +598,8 @@ export class AtlasMap {
       props.nameLocal,
       isValidIso3(props.iso3) ? ISO3_ZH_FALLBACK[props.iso3] : "",
     ].filter(Boolean) as string[];
-    return names.some((n) => this.litCountrySet.has(n));
+    return names.some((n) => this.litCountrySet.has(n)) ||
+      (props.iso3 === "CHN" && this.litPoints.some((p) => pointInFeature(p.lng, p.lat, feature)));
   }
 
   /** 要素的最终样式：点亮 → 暖金色，未点亮 → 常规灰 */
@@ -683,7 +694,7 @@ export class AtlasMap {
       this.geoJsonLayers = L.geoJSON(data, {
         style: (feature) => this.styleFor(feature as AdminFeature, level),
         onEachFeature: (feature, layer) => {
-          this.setupFeatureInteraction(feature as AdminFeature, layer, level);
+          this.setupFeatureInteraction(feature as AdminFeature, layer, (feature as AdminFeature).properties.level || level);
         },
         // @types/leaflet 的 GeoJSONOptions 未声明 renderer，实际支持透传给内部 Path
         renderer: this.canvasRenderer,
@@ -695,7 +706,7 @@ export class AtlasMap {
         this.geoJsonLayers = L.geoJSON(data, {
           style: (feature) => this.styleFor(feature as AdminFeature, level),
           onEachFeature: (feature, layer) => {
-            this.setupFeatureInteraction(feature as AdminFeature, layer, level);
+            this.setupFeatureInteraction(feature as AdminFeature, layer, (feature as AdminFeature).properties.level || level);
           },
         }).addTo(this.map);
       } catch (e2) {
@@ -976,8 +987,19 @@ export class AtlasMap {
   }
 
   focus(city: City): void {
+    if (this.pendingFocus) this.map.off("zoomend", this.pendingFocus);
+    this.pendingFocus = null;
     this.selected = city;
     if (hasCoords(city)) {
+      // Leaflet 缩放中会忽略新的 setView；动画结束后只执行最后一次选择。
+      if (this.zoomAnimating) {
+        this.pendingFocus = () => { this.pendingFocus = null; this.focus(city); };
+        this.map.once("zoomend", this.pendingFocus);
+        return;
+      }
+      // 列表连点或从隐藏页切回时，先停止旧动画并按当前可见尺寸定位。
+      this.map.stop();
+      this.map.invalidateSize({ animate: false, pan: false });
       this.map.setView([city.lat, city.lng], Math.max(this.map.getZoom(), 10), {
         animate: true,
       });
@@ -1159,13 +1181,14 @@ export class AtlasMap {
         if (feat.geometry?.type !== "LineString") continue;
         const inferred = !!feat.properties?.inferred;
         const latlngs = feat.geometry.coordinates.map(([lng, lat]) => [lat, lng] as [number, number]);
+        const popup = (): HTMLElement => createTrackPopup(feat.properties ?? {}, f.basename);
         L.polyline(latlngs, {
           color,
           weight: inferred ? 2 : 3,
           opacity: inferred ? 0.3 : 0.55,
           dashArray: inferred ? "4 8" : undefined,
           renderer: this.trackRenderer,
-        }).addTo(layer);
+        }).bindPopup(popup, { maxWidth: 340 }).addTo(layer);
         // 方式分色：properties.segments（起止秒）+ ts（坐标时间戳）→ 逐段上色
         const segs = feat.properties?.segments;
         const ts = feat.properties?.ts;
@@ -1181,7 +1204,7 @@ export class AtlasMap {
                 weight: 3.5,
                 opacity: 0.9,
                 renderer: this.trackRenderer,
-              }).addTo(layer);
+              }).bindPopup(popup, { maxWidth: 340 }).addTo(layer);
             }
           }
         }
@@ -1369,7 +1392,8 @@ export class AtlasMap {
         icon: this.iconFor(city),
         riseOnHover: true,
       });
-      marker.bindPopup(popupHtml(city));
+      // 选中后由 focus 负责居中，弹窗不能再把水滴标记从中心推开。
+      marker.bindPopup(popupHtml(city), { autoPan: false });
       marker.on("click", () => {
         this.selected = city;
         this.onSelect(city);
@@ -1418,6 +1442,8 @@ export class AtlasMap {
   }
 
   destroy(): void {
+    if (this.pendingFocus) this.map.off("zoomend", this.pendingFocus);
+    this.pendingFocus = null;
     // 使在途的异步渲染（轨迹/覆盖率）失效，避免往已销毁的地图上加层
     this.trackToken++;
     this.coverageToken++;
@@ -1429,6 +1455,7 @@ export class AtlasMap {
     if (this.geoJsonLayers) this.geoJsonLayers.remove();
     if (this.labelLayer) this.labelLayer.remove();
     if (this.coverageLayer) this.coverageLayer.remove();
+    if (this.chinaBoundaryLayer) this.chinaBoundaryLayer.remove();
     if (this.labelDebounce !== null) {
       window.clearTimeout(this.labelDebounce);
       this.labelDebounce = null;

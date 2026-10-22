@@ -3,6 +3,7 @@ import type AtlasPlugin from "../main";
 import type { City } from "../model/City";
 import { ensureFolder } from "../util/File";
 import { cityTemplate } from "../util/Template";
+import { travelTags } from "../model/TravelTags";
 
 export class CityModal extends Modal {
   plugin: AtlasPlugin;
@@ -128,6 +129,7 @@ export class AddCityCommand {
           fm.lat = d.lat;
           fm.lng = d.lng;
           fm.type = "city";
+          fm.tags = travelTags(fm.tags, [d.country]);
         });
       }
     } else {

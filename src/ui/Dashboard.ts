@@ -1,4 +1,6 @@
 import type AtlasPlugin from "../main";
+import { Notice } from "obsidian";
+import { ensureCountryNote } from "../util/CountryNote";
 import type { City } from "../model/City";
 import { hasCoords } from "../model/City";
 import { buildCountries } from "../model/Country";
@@ -6,6 +8,9 @@ import { computeCoverage } from "../model/Coverage";
 import { loadAdminGeoJson } from "../map/GeoJsonLoader";
 import { StatisticsPanel } from "./Statistics";
 import { AddCityCommand } from "../commands/AddCity";
+import { YearReviewCommand } from "../commands/YearReview";
+import { readTrackDayProps } from "../commands/CoverageReport";
+import { annualSnapshot } from "../model/TravelInsights";
 
 /**
  * Full-width overview tab: headline stats, recent visits, top cities,
@@ -80,6 +85,18 @@ export class AtlasDashboard {
           ? `访问 ${cn.visits} 次 · ${cn.lastVisit}`
           : "未访问";
         row.onclick = () => this.onFilterCountry(cn.name);
+        const journal = row.createEl("button", { text: "打开国家手记", cls: "atlas-country-note-button" });
+        journal.title = `打开${cn.name}的旅行手记，缺少时自动创建`;
+        journal.onclick = async (event) => {
+          event.stopPropagation();
+          journal.disabled = true;
+          try {
+            const file = await ensureCountryNote(this.plugin.app, this.plugin.settings.travelFolder, cn.name);
+            await this.plugin.app.workspace.openLinkText(file.path, "", false);
+          } catch (error) {
+            new Notice(`国家手记未能打开：${error instanceof Error ? error.message : String(error)}`);
+          } finally { journal.disabled = false; }
+        };
       }
     }
 
@@ -118,6 +135,9 @@ export class AtlasDashboard {
       );
     }
     parts.push(`r:${this.plugin.db.route.totalKm}`, `t:${this.plugin.db.trackKm}`);
+    for (const f of this.plugin.app.vault.getFiles()) {
+      if (f.path.startsWith(`${this.plugin.settings.travelFolder}/轨迹/`) && f.extension === "geojson") parts.push(`gps:${f.path}:${f.stat.mtime}`);
+    }
     for (const s of this.plugin.db.suggestions) parts.push(`s:${s.name}:${s.diaries}`);
     return parts.join("|");
   }
@@ -201,36 +221,29 @@ export class AtlasDashboard {
 
   /** 年度旅行报告：当年新到访城市、到访次数、轨迹里程 */
   private renderYearReport(sec: HTMLElement): void {
-    const year = new Date().getFullYear();
-    const prefix = `${year}`;
-    // 到访记录以该年开头的城市（月份 2025-09 与日期 2025-10-02 都算命中当年）
-    const touched = [...this.plugin.db.cities, ...this.plugin.db.places].filter((c) =>
-      c.visitDates.some((d) => d.startsWith(prefix)),
-    );
-    // 新到访：该年首次出现到访记录的城市
-    const fresh = touched.filter((c) => {
-      const before = c.visitDates.filter((d) => !d.startsWith(prefix));
-      return before.length === 0;
-    });
-    const visitCount = touched.reduce(
-      (n, c) => n + c.visitDates.filter((d) => d.startsWith(prefix)).length,
-      0,
-    );
-    const trackKm = this.plugin.db.trackKm;
-
-    sec.createEl("h3", { text: `${year} 旅行报告` });
-    const grid = sec.createDiv("atlas-stat-grid");
-    const cards: [string, string | number, string?][] = [
-      ["新到访城市", fresh.length ? [...fresh].map((c) => c.name).join("、") : "—"],
-      ["涉及城市", touched.length],
-      ["到访记录", visitCount],
-      ["轨迹里程", `${Math.round(trackKm).toLocaleString()} km`],
-    ];
-    for (const [label, value, hint] of cards) {
-      const d = grid.createDiv("atlas-stat-card");
-      d.createDiv("atlas-stat-value").textContent = String(value);
-      d.createDiv("atlas-stat-label").textContent = hint ? `${label} · ${hint}` : label;
-    }
+    const now = new Date(); const year = String(now.getFullYear());
+    const today = `${year}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    sec.createEl("h3", { text: `${year} · 这一年的足迹` });
+    const holder = sec.createDiv();
+    holder.createDiv({ text: "正在翻阅今年的记录…", cls: "atlas-muted" });
+    void readTrackDayProps(this.plugin).then((tracks) => {
+      if (!this.el.contains(sec)) return;
+      const data = annualSnapshot([...this.plugin.db.cities, ...this.plugin.db.places], tracks, year, today);
+      holder.empty(); const grid = holder.createDiv("atlas-stat-grid");
+      const cards: [string, string | number][] = [
+        ["首次记录的地点", data.fresh.length], ["到访地点", data.rows.length],
+        ["有完整日期的足迹日", data.days.length], ["本年 GPS 路程", data.km === null ? "未记录" : `${data.km.toLocaleString()} km`],
+      ];
+      for (const [label, value] of cards) {
+        const d = grid.createDiv("atlas-stat-card");
+        d.createDiv("atlas-stat-value").textContent = String(value);
+        d.createDiv("atlas-stat-label").textContent = label;
+      }
+    }).catch(() => { holder.setText("年度数据暂时无法读取，可以稍后重新扫描。"); });
+    const actions = sec.createDiv("atlas-year-actions");
+    actions.createEl("button", { text: "生成今年回顾" }).onclick = () => { void new YearReviewCommand(this.plugin).run(year); };
+    actions.createEl("button", { text: "翻开其他年份" }).onclick = () => { void new YearReviewCommand(this.plugin).run(); };
+    actions.createEl("button", { text: "整理全部年度回顾" }).onclick = () => { void new YearReviewCommand(this.plugin).runAll(); };
   }
 
   private recentVisits(): City[] {

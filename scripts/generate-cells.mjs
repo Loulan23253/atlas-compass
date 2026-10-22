@@ -3,7 +3,7 @@
  * 中国国土格点栅格化脚本 —— data/chinacells.txt 的唯一再生成入口。
  *
  * 遍历 geohash5 规范格（纬度 12bit × 经度 13bit，共 4096×8192 格，约 4.9km×4.9km），
- * 取格心（索引中心）对 Natural Earth 中国多边形做包含测试，命中的格输出为
+ * 取格心（索引中心）对 DataV 中国陆地多边形（含台湾，已剔除断续线符号）做包含测试，命中的格输出为
  * 排序后的 5 字符格串首尾相接纯文本（无分隔符、无换行），
  * 与 src/model/LandCoverage.ts 的读取方式（每 5 字符一格）一致。
  *
@@ -18,7 +18,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const SRC = resolve(PROJECT_ROOT, "data/countries.geojson");
+const SRC = resolve(PROJECT_ROOT, "data/china-country.geojson");
 const DST = resolve(PROJECT_ROOT, "data/chinacells.txt");
 
 const LAT_CELLS = 1 << 12; // 纬度 12bit → 4096 行
@@ -128,7 +128,7 @@ function main() {
   const geo = JSON.parse(readFileSync(SRC, "utf8"));
   const china = findChinaFeature(geo);
   if (!china) {
-    console.error("data/countries.geojson 里没找到 CHN 要素（iso3/adm0_a3/ISO_A3 均未命中）");
+    console.error("data/china-country.geojson 里没找到 CHN 陆地要素");
     process.exit(1);
   }
 
@@ -137,6 +137,7 @@ function main() {
   console.log(`CHN 要素：${polys.length} 个多边形，覆盖 ${rows.size} 个格点行（共 ${LAT_CELLS} 行）`);
 
   const cells = [];
+  const previousCount = readFileSync(DST, "utf8").trim().length / 5;
   for (const [i, lists] of rows) {
     // 该行交叉点的经度范围 → 只需测这个范围内的列（范围外交叉点数为偶数，必不在多边形内）
     let minX = Infinity, maxX = -Infinity;
@@ -162,6 +163,7 @@ function main() {
   writeFileSync(DST, text);
 
   console.log(`命中格数：${cells.length}（去重 ${new Set(cells).size}）`);
+  console.log(`原有 ${previousCount} 格，变化 ${((cells.length / previousCount - 1) * 100).toFixed(2)}%`);
   console.log(`输出：${DST}  ${statSync(DST).size} 字节（${cells.length} 格 × 5 字符）`);
 }
 

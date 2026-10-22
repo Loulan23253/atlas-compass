@@ -1,12 +1,13 @@
 /**
  * 中国国土格点覆盖率 —— 数据为内置的中国陆地 5 位 geohash 格全集：
- * 全国陆地 5 位 geohash 格（约 4.9km×4.9km）共 585,426 格。
+ * 总格数以有效数据集为准（内置基线为 499,757 格）。
  * 「点亮」= 任一 GPS 点落在该格内；覆盖率 = 已点亮格 / 总格数（App 同口径）。
  */
 
 import { geohashEncode } from "./WorldCityIndex";
 import { pluginDataPath } from "../util/DataPath";
 import { embeddedChinaCells } from "../util/Embedded";
+import { loadOfflineData } from "../util/OfflineData";
 
 
 let chinaCells: Set<string> | null = null;
@@ -17,18 +18,17 @@ export function loadChinaCells(readText: (path: string) => Promise<string | null
   if (chinaCells) return Promise.resolve(chinaCells);
   if (loading) return loading;
   loading = (async () => {
-    const file = await readText(`${pluginDataPath()}/chinacells.txt`);
-    // data/ 缺失（官方安装）→ 内联兜底
-    const text = file ?? embeddedChinaCells();
-    const set = new Set<string>();
-    if (text) {
-      // 文件为 5 字符编码首尾相接的纯串
-      for (let i = 0; i + 5 <= text.length; i += 5) set.add(text.slice(i, i + 5));
-    }
+    const set = await loadOfflineData([`${pluginDataPath()}/chinacells.txt`], readText, embeddedChinaCells, (raw) => {
+      const text = raw.trim();
+      if (!text.length || text.length % 5 || /[^0123456789bcdefghjkmnpqrstuvwxyz]/.test(text)) throw new Error("国土格点格式错误");
+      const cells = new Set<string>();
+      for (let i = 0; i < text.length; i += 5) cells.add(text.slice(i, i + 5));
+      return cells;
+    }) ?? new Set<string>();
     // 数据缺失/损坏时不缓存空集，允许下次重试
     if (set.size > 0) chinaCells = set;
     return set;
-  })();
+  })().finally(() => { loading = null; });
   return loading;
 }
 

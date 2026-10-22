@@ -12,7 +12,9 @@ export function computeStats(db: AtlasDB): StatCard[] {
   return [
     { label: "国家", value: s.countries },
     { label: "城市", value: s.cities },
-    { label: "地点", value: s.pois },
+    { label: "地点笔记", value: s.pois },
+    { label: "GPS 停留", value: s.trackStays, hint: "段" },
+    { label: "有 GPS 停留的日期", value: s.trackStayDays, hint: "天" },
     { label: "访问记录", value: s.visits },
     { label: "已访问城市", value: s.visitedCities },
     { label: "路线里程", value: s.routeKm, hint: "km" },

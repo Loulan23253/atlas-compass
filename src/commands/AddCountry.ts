@@ -1,7 +1,6 @@
 import { Modal, Notice } from "obsidian";
 import type AtlasPlugin from "../main";
-import { ensureFolder } from "../util/File";
-import { countryTemplate } from "../util/Template";
+import { ensureCountryNote } from "../util/CountryNote";
 
 export class CountryModal extends Modal {
   plugin: AtlasPlugin;
@@ -37,16 +36,16 @@ export class CountryModal extends Modal {
         new Notice("请填写国家名");
         return;
       }
-      const folder = `${this.plugin.settings.travelFolder}/${name}`;
-      await ensureFolder(this.plugin.app, folder);
-      const indexPath = `${folder}/${name}.md`;
-      if (!this.plugin.app.vault.getAbstractFileByPath(indexPath)) {
-        await this.plugin.app.vault.create(indexPath, countryTemplate(name));
-      }
-      await this.plugin.db.scan();
-      this.plugin.refreshViews();
-      new Notice(`已添加国家 ${name}`);
-      this.close();
+      ok.disabled = true;
+      try {
+        const file = await ensureCountryNote(this.plugin.app, this.plugin.settings.travelFolder, name);
+        await this.plugin.db.scan();
+        this.plugin.refreshViews();
+        await this.plugin.app.workspace.openLinkText(file.path, "", false);
+        this.close();
+      } catch (error) {
+        new Notice(`国家手记未能打开：${error instanceof Error ? error.message : String(error)}`);
+      } finally { ok.disabled = false; }
     };
   }
 

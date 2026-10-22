@@ -11,11 +11,18 @@
 
 .atlas-tabs {
   display: flex;
+  align-items: center;
+  flex-wrap: wrap;
   gap: 4px;
   padding: 6px 8px 0;
   background: var(--background-secondary);
   border-bottom: 1px solid var(--background-modifier-border);
   flex: 0 0 auto;
+}
+
+.atlas-import-action {
+  margin: 0 0 6px auto;
+  flex-shrink: 0;
 }
 
 .atlas-tab {
@@ -356,6 +363,8 @@
 .atlas-map .leaflet-container img{max-width:none}
 /* 弹窗层级保底：双类特异性压过 Leaflet 默认的 700（原 !important 规则的等价替代） */
 .leaflet-pane.leaflet-popup-pane { z-index: 800; }
+.leaflet-pane.leaflet-marker-pane { z-index: 600; }
+.leaflet-pane.leaflet-atlas-boundary-pane { z-index: 440; pointer-events: none; }
 .leaflet-control{position:relative;z-index:800;pointer-events:auto;float:left;clear:both}
 .leaflet-top,.leaflet-bottom{position:absolute;z-index:1000;pointer-events:none}
 .leaflet-top{top:0}.leaflet-bottom{bottom:0}.leaflet-left{left:0}.leaflet-right{right:0}
@@ -671,22 +680,148 @@
   box-shadow: 0 0 0 2px rgba(232, 144, 0, 0.6);
 }
 
-/* ===== 生成的旅行笔记样式（旅程/年度回顾 cssclasses） ===== */
-.atlas-trip h1 {
-  color: #d9480f;
-  border-bottom: 2px solid rgba(232, 144, 0, 0.35);
-  padding-bottom: 6px;
+/* ===== 旅行手记：留白、轻量摘要与照片；只作用于 Atlas 笔记 ===== */
+.atlas-note {
+  --atlas-ink: var(--text-normal);
+  --atlas-accent: #9a6036;
+  --atlas-wash: rgba(154, 96, 54, 0.065);
 }
-.theme-dark .atlas-trip h1 {
-  color: #ffa94d;
+.theme-dark .atlas-note { --atlas-accent: #dfb28b; --atlas-wash: rgba(223, 178, 139, 0.07); }
+.atlas-note .markdown-preview-sizer { max-width: 780px; margin-inline: auto; }
+.atlas-note.markdown-preview-view { line-height: 1.85; }
+.atlas-note h1, .atlas-note .HyperMD-header-1 {
+  color: var(--atlas-ink);
+  font-weight: 650;
+  letter-spacing: 0.015em;
+  line-height: 1.4;
+  border: 0;
+  margin-block: 1.2em 0.8em;
 }
-.atlas-trip h2 {
-  font-size: 1.1em;
-  color: #495057;
+.atlas-note h2, .atlas-note .HyperMD-header-2 {
+  color: var(--atlas-accent);
+  font-size: 1.2em;
+  font-weight: 600;
+  margin-block: 2.4em 0.85em;
+  border: 0;
 }
-.theme-dark .atlas-trip h2 {
-  color: #ced4da;
+.atlas-note h2 { display: flex; align-items: baseline; gap: 0.8em; }
+.atlas-note h2::after { content: ""; flex: 1; min-width: 24px; border-bottom: 1px solid var(--background-modifier-border); opacity: 0.65; }
+.atlas-note h1, .atlas-note h2, .atlas-note h3 { overflow-wrap: anywhere; text-wrap: pretty; }
+.atlas-note h3, .atlas-note .HyperMD-header-3 {
+  font-size: 1.02em;
+  font-weight: 600;
+  margin-block: 1.8em 0.6em;
 }
+.atlas-note .callout[data-callout="abstract"] {
+  --callout-color: 154, 96, 54;
+  background: var(--atlas-wash);
+  border: 0;
+  border-inline-start: 2px solid var(--atlas-accent);
+  border-radius: 0 12px 12px 0;
+  padding: 16px 20px;
+}
+.atlas-note .callout[data-callout="info"], .atlas-note .callout[data-callout="note"] {
+  background: transparent;
+  box-shadow: none;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  font-size: 0.88em;
+  color: var(--text-muted);
+}
+.atlas-note .callout-content p:last-child { margin-bottom: 0; }
+.atlas-note a.internal-link { text-decoration-color: var(--background-modifier-border); text-underline-offset: 4px; }
+.atlas-note table { width: 100%; font-size: 0.92em; border-collapse: collapse; }
+.atlas-note th, .atlas-note td {
+  padding: 10px 12px;
+  border: 0;
+  border-bottom: 1px solid var(--background-modifier-border);
+  vertical-align: top;
+}
+.atlas-note th { color: var(--text-muted); font-weight: 500; background: var(--atlas-wash); }
+.atlas-note img { max-width: 100%; height: auto; border-radius: 10px; }
+.atlas-note .image-embed { margin-block: 1.1em; }
+.atlas-note .image-embed + em, .atlas-note p:has(> .image-embed) + p > em:only-child { display: block; color: var(--text-muted); font-size: 0.88em; line-height: 1.7; }
+.atlas-note .table-wrapper, .atlas-note .el-table { overflow-x: auto; }
+.atlas-note blockquote:not(.callout) { color: var(--text-muted); border-inline-start-color: var(--background-modifier-border); }
+.atlas-city-journal { background: var(--atlas-wash, var(--background-secondary)); border-radius: 10px; padding: 18px 20px; margin-block: 1.4em; }
+.atlas-country-journal { background: var(--atlas-wash, var(--background-secondary)); border-radius: 10px; padding: 18px 20px; margin-block: 1.4em; }
+.atlas-country-section h4 { margin: 18px 0 8px; font-size: 13px; color: var(--text-muted); }
+.atlas-country-links { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.atlas-country-links a { overflow-wrap: anywhere; }
+.atlas-country-note-button { flex-shrink: 0; font-size: 12px; }
+.atlas-country-gps { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--background-modifier-border); }
+.atlas-journal-metrics { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-block: 14px; }
+.atlas-journal-metric { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.atlas-journal-metric-value { font-size: 1.65em; line-height: 1.3; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--text-normal); }
+.atlas-journal-metric-label { font-size: 12px; color: var(--text-muted); }
+.atlas-journal-references { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--background-modifier-border); }
+.atlas-journal-reference-links { display: flex; flex-wrap: wrap; gap: 8px 16px; font-size: 13px; }
+.atlas-journal-reference-links a { overflow-wrap: anywhere; }
+.atlas-journal-more { margin-top: 12px; }
+.atlas-journal-more > summary { width: fit-content; max-width: 100%; cursor: pointer; color: var(--text-muted); font-size: 12px; padding-block: 6px; }
+.atlas-journal-more[open] > summary { margin-bottom: 6px; }
+.atlas-journal-more > summary:hover { color: var(--atlas-accent, var(--text-normal)); }
+.atlas-note .callout[data-callout="tip"] { --callout-color: 154, 96, 54; background: var(--atlas-wash); border: 0; border-radius: 8px; font-size: 0.9em; box-shadow: none; padding: 10px 14px; }
+.atlas-note .callout[data-callout="tip"].is-collapsed,
+.atlas-note details.callout[data-callout="tip"]:not([open]) { background: transparent; padding-block: 6px; border-inline-start: 2px solid var(--background-modifier-border); border-radius: 0; }
+.atlas-note .callout[data-callout="tip"] .callout-title { color: var(--text-muted); font-weight: 400; line-height: 1.7; }
+.atlas-note .callout[data-callout="tip"] .callout-icon { color: var(--atlas-accent); }
+.theme-dark .atlas-note .callout[data-callout="tip"] { --callout-color: 223, 178, 139; }
+.atlas-note :is(a, button, summary):focus-visible { outline: 2px solid var(--atlas-accent, var(--interactive-accent)); outline-offset: 3px; border-radius: 3px; }
+.atlas-city-journal-title { color: var(--atlas-accent, var(--text-muted)); font-size: 12px; margin-bottom: 8px; }
+.atlas-city-journal-stat { font-size: 15px; font-weight: 600; }
+.atlas-city-journal-hint { color: var(--text-muted); font-size: 12px; margin-top: 5px; }
+.atlas-city-journal-dates { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 12px; }
+.atlas-city-journal .atlas-city-journal-date { background: transparent; color: var(--text-muted); border: 1px solid var(--background-modifier-border); border-radius: 16px; padding: 3px 9px; font-size: 11px; height: auto; box-shadow: none; }
+.atlas-city-journal button.atlas-city-journal-date { color: var(--atlas-accent, var(--text-normal)); cursor: pointer; }
+.atlas-city-journal button.atlas-city-journal-date:hover { background: var(--background-primary); border-color: var(--atlas-accent); }
+.atlas-year-calendar { border: 1px solid var(--background-modifier-border); border-radius: 14px; padding: 20px; margin-block: 1.6em; }
+.atlas-year-tools, .atlas-year-current { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.atlas-year-title { font-size: 14px; font-weight: 600; }
+.atlas-year-caption { color: var(--text-muted); font-size: 12px; line-height: 1.7; }
+.atlas-year-metrics, .atlas-year-actions, .atlas-year-detail-links { display: flex; flex-wrap: wrap; gap: 6px; }
+.atlas-year-metrics button, .atlas-year-detail-links button { font-size: 11px; height: auto; padding: 5px 10px; border-radius: 16px; }
+.atlas-year-metrics button[aria-pressed="true"] { background: var(--atlas-accent, var(--interactive-accent)); color: var(--background-primary); }
+.atlas-year-months { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 7px; margin-block: 18px; }
+.atlas-year-months .atlas-year-month { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; height: auto; padding: 9px 10px; border: 1px solid var(--background-modifier-border); border-radius: 8px; box-shadow: none; background: transparent; color: var(--text-normal); }
+.atlas-year-months .atlas-year-month.is-selected { background: var(--atlas-wash); border-color: var(--atlas-accent); }
+.atlas-year-month-label { font-size: 12px; font-weight: 600; }
+.atlas-year-month-value { font-size: 10px; color: var(--text-muted); overflow-wrap: anywhere; }
+.atlas-year-grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; margin-block: 12px; }
+.atlas-year-weekday { color: var(--text-muted); font-size: 11px; text-align: center; padding-block: 4px; }
+.atlas-year-grid .atlas-year-day { height: 35px; border: 0; border-radius: 7px; box-shadow: none; background: var(--background-secondary); font-size: 12px; color: var(--text-muted); }
+.atlas-year-grid .atlas-year-day:disabled { opacity: 0.45; cursor: default; }
+.atlas-year-grid .atlas-year-day.has-record { background: var(--atlas-wash); color: var(--atlas-accent); font-weight: 650; cursor: pointer; }
+.atlas-year-grid .atlas-year-day.is-selected { outline: 2px solid var(--atlas-accent); outline-offset: -2px; }
+.atlas-year-detail { border-top: 1px solid var(--background-modifier-border); padding-top: 14px; min-height: 60px; }
+.atlas-year-detail-date { font-size: 13px; font-weight: 600; }
+.atlas-year-detail-links { margin-top: 9px; }
+.atlas-year-legend { margin-top: 14px; }
+.atlas-year-actions { margin-top: 14px; }
+@media (max-width: 600px) {
+  .atlas-city-journal, .atlas-country-journal { padding: 16px 14px; }
+  .atlas-journal-metrics { gap: 8px; }
+  .atlas-note h2 { margin-top: 2em; font-size: 1.12em; }
+  .atlas-note .callout[data-callout="tip"] { padding-inline: 10px; }
+  .atlas-city-journal button.atlas-city-journal-date, .atlas-journal-more > summary { min-height: 36px; }
+  .atlas-note .callout[data-callout="abstract"] { padding: 12px 14px; }
+  .atlas-note th, .atlas-note td { padding: 8px; }
+  .atlas-year-calendar { padding: 14px 12px; }
+  .atlas-year-months { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 5px; }
+  .atlas-year-months .atlas-year-month { padding: 8px; }
+  .atlas-year-grid { gap: 4px; }
+}
+
+/* 轨迹详情：曲线留在地图里，展开时才渲染。 */
+.atlas-track-popup { min-width: 220px; max-width: 300px; }
+.atlas-track-popup .atlas-popup-header { color: var(--text-normal); border-color: var(--background-modifier-border); }
+.atlas-track-distance { font-size: 15px; font-weight: 600; margin-block: 8px; }
+.atlas-elevation-details { border-top: 1px solid var(--background-modifier-border); margin-top: 12px; padding-top: 10px; }
+.atlas-elevation-details summary { cursor: pointer; font-size: 12px; color: var(--text-muted); }
+.atlas-elevation-chart { display: block; width: 100%; height: auto; margin-top: 8px; color: var(--text-accent); }
+.atlas-elevation-chart text { fill: var(--text-muted); font-family: var(--font-interface); font-size: 10px; }
+.atlas-elevation-line { fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.atlas-elevation-area { fill: currentColor; opacity: 0.12; }
 
 /* ===== 弹窗内联样式迁移（上架审查：禁止 .style 赋值，样式统一定义在样式表） ===== */
 /* 添加城市/添加国家弹窗的文本输入框 */

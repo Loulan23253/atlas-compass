@@ -22,6 +22,8 @@ export interface TrackMetaEntry {
   avgKmh: number;
   /** 格点覆盖（与轨迹文件 properties.cells 一致），随签名一起缓存 */
   cells?: string[];
+  /** 海拔摘要及采样签名，重复导入时可补齐旧轨迹与海拔单独变化。 */
+  elevationSig?: string;
   /** 最后写盘时间（ISO） */
   updated: string;
 }
@@ -54,6 +56,7 @@ export async function readTrackMeta(plugin: AtlasPlugin): Promise<Record<string,
         stays: Number(e.stays) || 0,
         avgKmh: Number(e.avgKmh) || 0,
         cells: Array.isArray(e.cells) ? e.cells.map(String) : undefined,
+        elevationSig: typeof e.elevationSig === "string" ? e.elevationSig : undefined,
         updated: typeof e.updated === "string" ? e.updated : "",
       };
     }

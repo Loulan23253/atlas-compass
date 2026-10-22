@@ -366,6 +366,7 @@ export function altitudeStats(pts: GpsPoint[]): { min: number; max: number; gain
     has = true;
     if (a < min) min = a;
     if (a > max) max = a;
+    if (prev === null) prev = a;
     if (prev !== null && Math.abs(a - prev) >= 1) {
       if (a > prev) gain += a - prev;
       prev = a; // 仅在变化超过死区时推进基准，缓坡累计不漏
@@ -375,34 +376,80 @@ export function altitudeStats(pts: GpsPoint[]): { min: number; max: number; gain
 }
 
 /** 单日海拔剖面 SVG（600×140，嵌入笔记即渲染；无海拔数据的点跳过） */
+/**
+ * 海拔剖面图：按累计水平里程分桶（停留不占宽度），桶内取平均，
+ * Catmull-Rom 拟合成平滑面积曲线——不再逐点连线（数万点的轨迹逐点画
+ * 既锯齿生硬又让 SVG 体积爆炸）。
+ */
 export function altitudeSvg(pts: GpsPoint[], width = 600, height = 140): string | null {
-  // 单遍合并：有效海拔过滤与 min/max 统计一次完成（原实现 filter → min/max → map 三趟）
-  const alts: number[] = [];
+  const seq: Array<{ d: number; a: number }> = [];
   let min = Infinity;
   let max = -Infinity;
+  let cum = 0;
+  let prev: GpsPoint | null = null;
   for (const p of pts) {
     const a = p.alt;
     if (a === undefined || !Number.isFinite(a)) continue;
-    alts.push(a);
+    if (prev) cum += dist(prev, p);
+    seq.push({ d: cum, a });
     if (a < min) min = a;
     if (a > max) max = a;
+    prev = p;
   }
-  const cnt = alts.length;
+  const cnt = seq.length;
   if (cnt < 2) return null;
+  const totalD = cum;
   const span = Math.max(max - min, 1);
   const pad = 8;
-  const coords = new Array<string>(cnt);
-  for (let i = 0; i < cnt; i++) {
-    const x = pad + (i / (cnt - 1)) * (width - pad * 2);
-    const y = height - pad - ((alts[i] - min) / span) * (height - pad * 2);
-    coords[i] = `${x.toFixed(1)},${y.toFixed(1)}`;
+
+  // 分桶：约 150 列（点少时逐点）；空桶沿用前桶高度
+  const BUCKETS = Math.min(cnt, 150);
+  const xs: number[] = [];
+  const ys: number[] = [];
+  let lo = 0;
+  for (let b = 0; b < BUCKETS; b++) {
+    const hiD = ((b + 1) / BUCKETS) * totalD;
+    let sum = 0;
+    let n = 0;
+    while (lo < cnt && (seq[lo].d < hiD || b === BUCKETS - 1)) {
+      sum += seq[lo].a;
+      n++;
+      lo++;
+    }
+    xs.push(pad + ((b + 0.5) / BUCKETS) * (width - pad * 2));
+    if (n > 0) {
+      ys.push(height - pad - ((sum / n - min) / span) * (height - pad * 2));
+    } else {
+      ys.push(ys.length ? ys[ys.length - 1] : height - pad);
+    }
   }
+
+  // Catmull-Rom → 三次贝塞尔平滑
+  let line = `M${xs[0].toFixed(1)},${ys[0].toFixed(1)}`;
+  for (let i = 0; i < xs.length - 1; i++) {
+    const p0 = Math.max(0, i - 1);
+    const p3 = Math.min(xs.length - 1, i + 2);
+    const c1x = xs[i] + (xs[i + 1] - xs[p0]) / 6;
+    const c1y = ys[i] + (ys[i + 1] - ys[p0]) / 6;
+    const c2x = xs[i + 1] - (xs[p3] - xs[i]) / 6;
+    const c2y = ys[i + 1] - (ys[p3] - ys[i]) / 6;
+    line += `C${c1x.toFixed(1)},${c1y.toFixed(1)} ${c2x.toFixed(1)},${c2y.toFixed(1)} ${xs[i + 1].toFixed(1)},${ys[i + 1].toFixed(1)}`;
+  }
+  const base = height - pad;
+  const area = `${line}L${xs[xs.length - 1].toFixed(1)},${base}L${xs[0].toFixed(1)},${base}Z`;
+  const km = totalD >= 1000 ? `${(totalD / 1000).toFixed(1)}km` : `${Math.round(totalD)}m`;
   return [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">`,
+    `  <defs><linearGradient id="altg" x1="0" y1="0" x2="0" y2="1">`,
+    `    <stop offset="0" stop-color="#4dabf7" stop-opacity="0.45"/>`,
+    `    <stop offset="1" stop-color="#4dabf7" stop-opacity="0.05"/>`,
+    `  </linearGradient></defs>`,
     `  <rect width="${width}" height="${height}" fill="none"/>`,
-    `  <polyline fill="none" stroke="#495057" stroke-width="1.5" points="${coords.join(" ")}"/>`,
+    `  <path d="${area}" fill="url(#altg)"/>`,
+    `  <path d="${line}" fill="none" stroke="#1c7ed6" stroke-width="1.8" stroke-linecap="round"/>`,
     `  <text x="${pad}" y="${height - 2}" font-size="10" fill="#868e96">最低 ${Math.round(min)}m</text>`,
     `  <text x="${width - pad}" y="${height - 2}" font-size="10" fill="#868e96" text-anchor="end">最高 ${Math.round(max)}m</text>`,
+    `  <text x="${width / 2}" y="${height - 2}" font-size="10" fill="#868e96" text-anchor="middle">里程 ${km}</text>`,
     "</svg>",
   ].join("\n");
 }

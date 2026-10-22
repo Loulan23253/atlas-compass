@@ -19,7 +19,9 @@ import {
 import { loadAdminGeoJson, availableAdmin2Iso3, findCityFeature } from "../map/GeoJsonLoader";
 import { stripSuffix } from "../model/Coverage";
 import { slAnalyzeDay, type SLDayResult } from "../model/StepLife";
-import { cleanTrack, altitudeSvg, altitudeStats, type CleanResult } from "../model/TrackClean";
+import { cleanTrack, altitudeStats, type CleanResult } from "../model/TrackClean";
+import { buildElevation } from "../model/Elevation";
+import { cityTemplate } from "../util/Template";
 import { uniqueCells } from "../model/LandCoverage";
 import { loadWorldCityIndex, resolveWorldCity } from "../model/WorldCityIndex";
 import { readTrackMeta, writeTrackMeta } from "./TrackMeta";
@@ -79,11 +81,14 @@ export class ImportModal extends Modal {
   onOpen(): void {
     const { contentEl } = this;
     contentEl.empty();
-    contentEl.createEl("h2", { text: "导入城市" });
+    contentEl.createEl("h2", { text: "导入旅行数据" });
+    contentEl.createEl("p", {
+      text: "选择 CSV / GPX 轨迹文件，或 CSV / TSV / JSON 城市列表。选择后会自动识别数据类型，并先显示预览。",
+    });
     contentEl.createEl("p", {
       cls: "atlas-muted",
       text:
-        "支持 CSV / TSV / JSON。CSV 首行为列名，支持中文列名：名称或城市、国家、纬度、经度、" +
+        "城市列表的 CSV 首行为列名，支持中文列名：名称或城市、国家、纬度、经度、" +
         "访问次数、访问日期（多个用 | 分隔）、最近访问、备注、类型（city/place）。名称与国家为必填。",
     });
 
@@ -309,9 +314,7 @@ export class ImportModal extends Modal {
     const importContentHash = this.fileHash;
     if (this.gpsSaveTracks) {
       const folder = `${plugin.settings.travelFolder}/轨迹`;
-      const elevFolder = `${plugin.settings.travelFolder}/轨迹/海拔`;
       await ensureFolder(plugin.app, folder);
-      await ensureFolder(plugin.app, elevFolder);
       // 日期 → 当天原始点/清洗结果索引（循环外建一次，避免逐日线性 find 的 O(n²)）
       const rawByDate = new Map((this.gpsRawDays ?? []).map((d) => [d.date, d]));
       const cleanByDate = new Map((this.cleanDays ?? []).map((d) => [d.date, d]));
@@ -325,7 +328,8 @@ export class ImportModal extends Modal {
         const cleaned = cleanByDate.get(day.date)?.cleaned
           ?? cleanTrack(rawDay?.points ?? day.points);
         const sl = slAnalyzeDay(cleaned.points);
-        const elev = altitudeStats(cleaned.points);
+        const elev = buildElevation(cleaned.points);
+        const elevationSig = JSON.stringify(elev);
         // 行程摘要：停留次数 / 均速 / 峰值速度（速度来自各路径段的距离与时长）
         const avgKmh = dayAvgKmh(sl);
         const maxKmh = sl.moves.length ? Math.round(Math.max(...sl.moves.map((m) => m.maxSpeedKmh))) : 0;
@@ -394,10 +398,24 @@ export class ImportModal extends Modal {
           cleaned.points,
           sl,
         );
-        if (!changed) {
+        if (!changed && cached?.elevationSig === elevationSig) {
           unchanged += 1;
         } else {
-          await plugin.app.vault.adapter.write(path, newContent);
+          // 只补海拔时保留用户手动修正的交通方式及其余属性。
+          let content = newContent;
+          if (!changed && fileExists) {
+            try {
+              const previous = JSON.parse(await plugin.app.vault.adapter.read(path)) as {
+                features?: Array<{ properties?: Record<string, unknown> }>;
+              };
+              const props = previous.features?.[0]?.properties;
+              if (props) {
+                props.elev = elev;
+                content = JSON.stringify(previous);
+              }
+            } catch { /* 损坏的旧文件用本次导入修复。 */ }
+          }
+          await plugin.app.vault.adapter.write(path, content);
           if (!fileExists) added += 1;
           else updatedDays += 1;
           // 写盘成功：把新内容摘要记入边车，下次导入该日期直接命中快路径
@@ -408,23 +426,10 @@ export class ImportModal extends Modal {
             stays: sl.stays.length,
             avgKmh,
             cells,
+            elevationSig,
             updated: new Date().toISOString(),
           };
           metaDirty = true;
-          // 海拔剖面：CSV 带海拔列时生成 SVG（嵌入笔记可渲染；仅变化时写）
-          if (elev && elev.max > elev.min) {
-            try {
-              const svg = altitudeSvg(cleaned.points);
-              if (svg) {
-                const svgPath = `${elevFolder}/${day.date}.svg`;
-                const svgOld = plugin.app.vault.getAbstractFileByPath(svgPath);
-                if (!svgOld) await plugin.app.vault.create(svgPath, svg);
-                else await plugin.app.vault.adapter.write(svgPath, svg);
-              }
-            } catch (e) {
-              console.error("Atlas: 海拔 SVG 写入失败（不影响导入）:", e);
-            }
-          }
         }
       }
       // 导入结束：一次性写回边车（点前缀文件 Obsidian 不索引，独立于 data.json，卸载重装不受影响）
@@ -758,7 +763,7 @@ export async function mergeVisitDates(plugin: AtlasPlugin, notePath: string, dat
   return changed;
 }
 
-/** 从仓库里挑一个 CSV/TSV/JSON 文件 */
+/** 从仓库里挑一个轨迹或城市列表文件 */
 class VaultPickerModal extends FuzzySuggestModal<TFile> {
   plugin: AtlasPlugin;
   onPick: (file: TFile) => void;
@@ -767,11 +772,11 @@ class VaultPickerModal extends FuzzySuggestModal<TFile> {
     super(plugin.app);
     this.plugin = plugin;
     this.onPick = onPick;
-    this.setPlaceholder("选择要导入的 CSV / TSV / JSON 文件…");
+    this.setPlaceholder("选择要导入的 CSV / GPX / TSV / JSON 文件…");
   }
 
   getItems(): TFile[] {
-    return this.plugin.app.vault.getFiles().filter((f) => /\.(csv|tsv|tab|json)$/i.test(f.name));
+    return this.plugin.app.vault.getFiles().filter((f) => /\.(csv|gpx|tsv|tab|json)$/i.test(f.name));
   }
 
   getItemText(file: TFile): string {
@@ -922,37 +927,7 @@ export function parseCsv(content: string): ImportRow[] {
 }
 
 function buildCityNote(r: ImportRow, country: string): string {
-  const dates = r.visitDates ?? [];
-  const lastVisit = r.lastVisit ?? (dates.length ? dates[dates.length - 1] : "");
-  const visits = r.visits ?? (dates.length ? dates.length : 0);
-  const kind = r.type === "place" ? "place" : "city";
-
-  const yamlSafe = (v: string): string => `"${v.replace(/"/g, '\\\\"')}"`;
-  let body = `---
-type: ${kind}
-name: ${yamlSafe(r.name)}
-country: ${yamlSafe(country)}
-lat: ${r.lat}
-lng: ${r.lng}
-visits: ${visits}
-visitDates:
-${dates.map((d) => `  - ${d}`).join("\n") || "  []"}
-lastVisit: ${lastVisit}
-created: ${todayISO()}
----
-
-# ${r.name}
-
-## Memories
-
-## Food
-
-## Places
-
-## Notes
-`;
-  if (r.notes) body += `\n${r.notes}\n`;
-  return body;
+  return cityTemplate(r.name, country, r.lat, r.lng, r.type === "place" ? "place" : "city", r);
 }
 
 /** djb2 内容哈希：用于导入历史识别同一文件（体积小、无需 crypto） */

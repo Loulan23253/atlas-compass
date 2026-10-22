@@ -2,6 +2,7 @@ import { ItemView, WorkspaceLeaf, Notice, Modal, TFile } from "obsidian";
 import type AtlasPlugin from "./main";
 import { AtlasMap } from "./map/MapView";
 import { AddCityCommand } from "./commands/AddCity";
+import { ImportModal } from "./commands/Import";
 import { AtlasSidebar } from "./ui/Sidebar";
 import { AtlasDashboard } from "./ui/Dashboard";
 import type { City } from "./model/City";
@@ -68,6 +69,9 @@ export class AtlasView extends ItemView {
     this.dashTabEl = tabs.createEl("button", { text: "📊 总览", cls: "atlas-tab" });
     this.mapTabEl.onclick = () => this.setMode("map");
     this.dashTabEl.onclick = () => this.setMode("dashboard");
+    const importBtn = tabs.createEl("button", { text: "导入数据", cls: "atlas-import-action mod-cta" });
+    importBtn.title = "导入 CSV / GPX 轨迹或 CSV / TSV / JSON 城市列表";
+    importBtn.onclick = () => new ImportModal(this.plugin).open();
 
     this.body = this.contentEl.createDiv("atlas-body");
 
@@ -152,6 +156,7 @@ export class AtlasView extends ItemView {
   }
 
   select(city: City): void {
+    if (this.mode !== "map") this.setMode("map");
     this.renderDetail(city);
     this.sidebar.setActive(city);
     this.atlasMap?.focus(city);
