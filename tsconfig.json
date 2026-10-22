@@ -5,6 +5,8 @@
     "typeRoots": ["node_modules/@types", "node_modules/obsidian"],
     "module": "ESNext",
     "target": "es2018",
+    "lib": ["DOM", "DOM.Iterable", "ES2018", "ES2020.BigInt"],
+    "types": [],
     "moduleResolution": "bundler",
     "strict": true,
     "esModuleInterop": true,

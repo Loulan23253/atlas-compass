@@ -13,8 +13,8 @@ export function tableText(value: string): string {
 }
 
 export function noteLink(path: string, label = path.split("/").pop()?.replace(/\.md$/, "") ?? path): string {
-  const target = path.replace(/\.md$/, "").replace(/[\[\]|#\r\n]/g, "");
-  return `[[${target}|${label.replace(/[\[\]|\r\n]/g, "")}]]`;
+  const target = path.replace(/\.md$/, "").replace(/[[\]|#\r\n]/g, "");
+  return `[[${target}|${label.replace(/[[\]|\r\n]/g, "")}]]`;
 }
 
 /** 只把机器生成部分放进标记；个人文字始终在标记之外。 */
@@ -24,7 +24,7 @@ export function travelNote(content: string, personal = "## 留给自己的几句
   let header = fm[0].replace(/^cssclasses:.*$/m, "cssclasses: [atlas-note, atlas-trip]");
   if (!/^tags\s*:/m.test(header)) header = header.replace(/^(---\r?\n)/, "$1tags: [travel]\n");
   const body = content.slice(fm[0].length).trim();
-  return `${header.trimEnd()}\n\n${GENERATED_START}\n<!-- atlas:hash:${contentHash(body)} -->\n${body}\n${GENERATED_END}\n\n${personal}\n`;
+  return `${header.replace(/\s+$/, "")}\n\n${GENERATED_START}\n<!-- atlas:hash:${contentHash(body)} -->\n${body}\n${GENERATED_END}\n\n${personal}\n`;
 }
 
 export function replaceGenerated(existing: string, fresh: string): string | null {

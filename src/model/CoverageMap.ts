@@ -10,9 +10,9 @@ const project = (p: Position, view: Projection): [number, number] => [
 
 function geometryPath(geometry: Geometry, view: Projection): string {
   const polygons = geometry.type === "Polygon" ? [geometry.coordinates] : geometry.type === "MultiPolygon" ? geometry.coordinates : [];
-  return polygons.flatMap((polygon) => polygon.map((ring) => ring.map((p, i) => {
+  return polygons.map((polygon) => polygon.map((ring) => ring.map((p, i) => {
     const [x, y] = project(p, view); return `${i ? "L" : "M"}${x.toFixed(2)},${y.toFixed(2)}`;
-  }).join("") + "Z")).join("");
+  }).join("") + "Z").join("")).join("");
 }
 
 function cellsSvg(cells: Set<string>, view: Projection, minimumSize: number): string {

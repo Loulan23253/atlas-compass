@@ -8,8 +8,9 @@ export function renderJournalReferences(el: HTMLElement, plugin: AtlasPlugin, ci
   for (const file of plugin.app.vault.getMarkdownFiles()) {
     if (!file.path.startsWith(`${plugin.settings.travelFolder}/`) || file.path === sourcePath) continue;
     const fm = plugin.app.metadataCache.getFileCache(file)?.frontmatter;
-    if (fm?.type !== "trip" && fm?.type !== "year-review") continue;
-    reports.push({ path: file.path, name: file.basename, type: fm.type, start: str(fm.start).slice(0, 10), end: str(fm.end).slice(0, 10), year: str(fm.year), mtime: file.stat.mtime });
+    const type: unknown = fm?.type;
+    if (!fm || (type !== "trip" && type !== "year-review")) continue;
+    reports.push({ path: file.path, name: file.basename, type, start: str(fm.start).slice(0, 10), end: str(fm.end).slice(0, 10), year: str(fm.year), mtime: file.stat.mtime });
   }
   const related = relatedJournals(cities, reports);
   if (!related.length) return;

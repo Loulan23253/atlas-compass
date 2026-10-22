@@ -7,7 +7,7 @@ const pending = new WeakMap<App, Map<string, Promise<TFile>>>();
 /** 按需补建国家页；已有自定义国家页优先，同名普通笔记不覆盖。 */
 export async function ensureCountryNote(app: App, travelFolder: string, country: string): Promise<TFile> {
   const name = country.trim();
-  if (!name || name === "." || name === ".." || /[\\/:*?"<>|#^\[\]\r\n]/.test(name)) {
+  if (!name || name === "." || name === ".." || /[\\/:*?"<>|#^[\]\r\n]/.test(name)) {
     throw new Error("国家名含有不能用于笔记名称的字符");
   }
   const root = normalizePath(travelFolder).replace(/\/$/, "");
@@ -33,8 +33,11 @@ export async function ensureCountryNote(app: App, travelFolder: string, country:
       const content = await app.vault.read(existing);
       const match = content.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/);
       try {
-        const fm = match ? parseYaml(match[1]) : null;
-        if (fm?.type === "country" && str(fm.name, existing.basename) === name) return existing;
+        const parsed: unknown = match ? parseYaml(match[1]) : null;
+        if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+          const fm = parsed as Record<string, unknown>;
+          if (fm.type === "country" && str(fm.name, existing.basename) === name) return existing;
+        }
       } catch { /* 无效 YAML 或同名普通笔记保留，使用下一个空闲路径。 */ }
     }
   };

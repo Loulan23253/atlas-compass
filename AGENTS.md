@@ -8,6 +8,7 @@ TypeScript + esbuild + Leaflet 的 Obsidian 插件，完全离线：地图边界
 npm run build      # 生产构建 → main.js（esbuild.config.mjs production）
 npm run dev        # 监听模式
 npm run typecheck  # tsc --noEmit，等于 npx tsc --noEmit
+npm run lint       # Obsidian 与类型安全审查，警告同样使检查失败
 npm run lod        # 重生成 data/*.lo.geojson（道格拉斯-普克简化）
 npm run cells      # 重生成 data/chinacells.txt（中国陆地 geohash5 格点）
 npm run china-boundaries -- 原始全国数据.json # 从 DataV 原始轮廓分离陆地与断续线符号
@@ -30,6 +31,7 @@ npm run test:bundle # 精简发布包与原数据消费结果逐项比对
 - 生成类笔记（旅程、国土覆盖率、年度回顾、照片足迹）写在 `Travel/` 下并带非 city/place 的 `type` frontmatter —— `TravelDB.scan()` 靠它过滤，新建报告类型必须遵守
 - 日记识别是全库扫描（形如 `2026-08-07.md`），与目录无关，不要加目录假设
 - 数据文件大（data/ 共 ~75MB），不要整读进上下文；改结构前先看 GeoJsonLoader 的消费方式
+- 源码不使用正则后行断言（旧版 iOS 无法解析）；类型检查显式限制标准库，避免依赖开发机额外全局类型。提交前运行 `npm run lint`，按零警告检查。
 
 ## 数据文件（data/）来源与重生成
 

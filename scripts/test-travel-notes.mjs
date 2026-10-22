@@ -49,7 +49,7 @@ import assert from 'node:assert/strict';
 import { makeApp, parseYaml } from 'obsidian';
 import { altitudeStats } from './src/model/TrackClean';
 import { buildElevation, elevationSummary, readElevation } from './src/model/Elevation';
-import { travelNote, replaceGenerated, upgradeCityBody } from './src/model/NoteFormat';
+import { travelNote, replaceGenerated, upgradeCityBody, noteLink } from './src/model/NoteFormat';
 import { tripNote } from './src/model/TripNote';
 import { cityTemplate, countryTemplate } from './src/util/Template';
 import { saveTravelNote } from './src/util/TravelNote';
@@ -72,6 +72,8 @@ import { travelTags } from './src/model/TravelTags';
 
 assert.deepEqual(travelTags(['旅行','travel','年度/2026']),['旅行','travel','年度/2026']);
 assert.deepEqual(travelTags('family, memories'),['family','memories','travel']);
+assert.deepEqual(travelTags([null,42,{name:'不是标签'},' travel, private ','#travel'],['中国']),['travel','private','中国']);
+assert.equal(noteLink('Travel/[城]|名.md','[别名]|注释'),'[[Travel/城名|别名注释]]');
 assert.deepEqual(travelTags(['私藏','travel'],['中国','日本','中国','[[United States]]']),['私藏','travel','中国','日本','United_States']);
 assert.deepEqual(parseYaml(countryTemplate('日本').match(/^---\\n([\\s\\S]*?)\\n---/)[1]).tags,['travel','日本']);
 const countriesVault=makeApp();
@@ -87,6 +89,7 @@ assert.equal((await ensureCountryNote(collisionVault.app,'Travel','日本')).pat
 const customCountry=makeApp({'Travel/索引/我的日本.md':countryTemplate('日本')});
 assert.equal((await ensureCountryNote(customCountry.app,'Travel','日本')).path,'Travel/索引/我的日本.md');assert.equal(customCountry.writes.length,0);
 await assert.rejects(ensureCountryNote(countriesVault.app,'Travel','../中国'));assert.equal(countriesVault.writes.length,1);
+for(const country of ['国[家','国]家','国|家','国#家','国^家'])await assert.rejects(ensureCountryNote(countriesVault.app,'Travel',country));
 
 const points=[100,101,102,105,104,110].map((alt,i)=>({t:1760000000000+i*60000,lat:31+i*.001,lng:121,alt}));
 assert.deepEqual(altitudeStats(points),{min:100,max:110,gain:11});

@@ -27,7 +27,8 @@ export function photoNote(points: PhotoStoryPoint[], noGps: number, today: strin
   }
   const identified = new Set(points.filter((p) => p.location).map((p) => p.locationKey || p.location));
   const dense = [...byDay].sort(([a, av], [b, bv]) => bv.length - av.length || a.localeCompare(b))[0];
-  const lines = ["---", "type: photo-report", `tags: ${JSON.stringify(travelTags([], points.flatMap((p) => p.country ? [p.country] : [])))}`, `updated: ${today}`, "cssclasses: [atlas-note, atlas-trip]", "---", "", "# 镜头里的旅途", "",
+  const countries = points.map((p) => p.country).filter((country): country is string => typeof country === "string" && !!country);
+  const lines = ["---", "type: photo-report", `tags: ${JSON.stringify(travelTags([], countries))}`, `updated: ${today}`, "cssclasses: [atlas-note, atlas-trip]", "---", "", "# 镜头里的旅途", "",
     "> [!abstract] 用照片，把路上的片刻接起来", `> **${points.length}** 张定位照片 · **${identified.size}** 个已识别地点 · **${byDay.size}** 个有拍摄日期的日子`, "",
     "## 相册里的时间线索", "",
   ];
@@ -57,7 +58,7 @@ export function photoNote(points: PhotoStoryPoint[], noGps: number, today: strin
   for (const photos of ranked.slice(0, 5)) {
     const sorted = [...photos].sort((a, b) => (a.date || "9999").localeCompare(b.date || "9999") || a.file.localeCompare(b.file));
     const place = sorted[0];
-    const dates = [...new Set(sorted.flatMap((p) => p.date && validDay(p.date) ? [p.date] : []))];
+    const dates = [...new Set(sorted.map((p) => p.date).filter((date): date is string => date !== null && validDay(date)))];
     lines.push(`### ${place.location || "还没认出的风景"}`, "",
       `${photos.length} 张照片${dates.length ? ` · ${dates[0]}${dates.length > 1 ? ` — ${dates[dates.length - 1]}` : ""}` : " · 拍摄日期缺失"}`, "");
     if (place.note) lines.push(`地点手记 → ${noteLink(place.note, place.location || "打开笔记")}`, "");

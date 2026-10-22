@@ -58,7 +58,8 @@ export class YearReviewCommand {
   async runAll(): Promise<void> {
     const context = await this.context();
     if (!context.years.length) { new Notice("还没有可生成回顾的足迹记录。"); return; }
-    const countries = context.years.flatMap((year) => annualSnapshot(context.cities, context.tracks, year, year === context.today.slice(0, 4) ? context.today : `${year}-12-31`).countries);
+    const countries: string[] = [];
+    for (const year of context.years) countries.push(...annualSnapshot(context.cities, context.tracks, year, year === context.today.slice(0, 4) ? context.today : `${year}-12-31`).countries);
     const lines = ["---", "type: year-index", `tags: ${JSON.stringify(travelTags([], countries))}`, `updated: ${context.today}`, "cssclasses: [atlas-note, atlas-trip]", "---", "", "# 一年一年，留在路上", "", "每一年都可以单独翻开。", "", "| 年份 | 到访地点 | 足迹日 | GPS 路程 |", "| --- | --- | --- | --- |"];
     this.plugin.setSuppressScan(true);
     try {

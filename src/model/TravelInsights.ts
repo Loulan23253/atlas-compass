@@ -54,10 +54,10 @@ export const nonNegative = (value: unknown): number => {
 const visits = (c: City): string[] => [...new Set(c.visitDates.filter(validVisit))].sort();
 
 export function availableYears(cities: City[], tracks: TrackDays): string[] {
-  return [...new Set([
-    ...cities.flatMap((c) => visits(c).map((d) => d.slice(0, 4))),
-    ...[...tracks.keys()].filter(validDay).map((d) => d.slice(0, 4)),
-  ])].filter((y) => Number(y) >= 1900 && Number(y) <= 9998).sort().reverse();
+  const years = new Set<string>();
+  for (const city of cities) for (const date of visits(city)) years.add(date.slice(0, 4));
+  for (const date of tracks.keys()) if (validDay(date)) years.add(date.slice(0, 4));
+  return [...years].filter((y) => Number(y) >= 1900 && Number(y) <= 9998).sort().reverse();
 }
 
 export function transportCounts(props: Iterable<Record<string, unknown>>): { mode: string; segments: number }[] {
@@ -147,11 +147,13 @@ export function coverageGrowth(tracks: TrackDays, land: Set<string>): {
   date: string; visited: number; fresh: number; cumulative: number;
 }[] {
   const seen = new Set<string>();
-  return [...tracks].filter(([d]) => validDay(d)).sort(([a], [b]) => a.localeCompare(b)).flatMap(([date, props]) => {
+  const result: { date: string; visited: number; fresh: number; cumulative: number }[] = [];
+  for (const [date, props] of [...tracks].filter(([d]) => validDay(d)).sort(([a], [b]) => a.localeCompare(b))) {
     const cells = new Set(Array.isArray(props.cells) ? props.cells.map(String).filter((c) => land.has(c)) : []);
-    if (!cells.size) return [];
+    if (!cells.size) continue;
     let fresh = 0;
     for (const cell of cells) if (!seen.has(cell)) { seen.add(cell); fresh++; }
-    return [{ date, visited: cells.size, fresh, cumulative: seen.size }];
-  });
+    result.push({ date, visited: cells.size, fresh, cumulative: seen.size });
+  }
+  return result;
 }

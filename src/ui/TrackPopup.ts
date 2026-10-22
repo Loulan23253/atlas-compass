@@ -49,8 +49,7 @@ function elevationChart(e: Elevation): SVGSVGElement | null {
 }
 
 export function createTrackPopup(data: TrackPopupData, fallbackDate: string): HTMLElement {
-  const el = document.createElement("div");
-  el.className = "atlas-track-popup";
+  const el = createDiv({ cls: "atlas-track-popup" });
   el.createDiv({ cls: "atlas-popup-header", text: data.date || fallbackDate });
   if (data.inferred) {
     el.createDiv({ cls: "atlas-popup-line", text: "推测连接段 · 这一段没有连续 GPS 记录" });

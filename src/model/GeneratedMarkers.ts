@@ -5,7 +5,8 @@ export function generatedMarkerRanges(source: string): MarkerRange[] {
   const ranges: MarkerRange[] = [];
   let offset = 0;
   let fence = "";
-  for (const line of source.split(/(?<=\n)/)) {
+  // 保留换行长度以计算编辑器偏移；避免旧版 iOS 不支持的后行断言。
+  for (const line of source.match(/[^\n]*\n|[^\n]+$/g) ?? []) {
     const text = line.replace(/\r?\n$/, "");
     const delimiter = text.match(/^ {0,3}(`{3,}|~{3,})/);
     if (delimiter) {

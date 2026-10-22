@@ -13,8 +13,8 @@ export class UpgradeTemplatesCommand {
     const targets = new Map([...this.plugin.db.cities, ...this.plugin.db.places].map((c) => [c.note, c.kind] as [string, string]));
     if (all) for (const file of this.plugin.app.vault.getMarkdownFiles()) {
       if (!file.path.startsWith(`${this.plugin.settings.travelFolder}/`)) continue;
-      const type = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter?.type;
-      if (["country", "trip", "year-review", "photo-report"].includes(type)) targets.set(file.path, type);
+      const type: unknown = this.plugin.app.metadataCache.getFileCache(file)?.frontmatter?.type;
+      if (typeof type === "string" && ["country", "trip", "year-review", "photo-report"].includes(type)) targets.set(file.path, type);
     }
     this.plugin.setSuppressScan(true);
     try {

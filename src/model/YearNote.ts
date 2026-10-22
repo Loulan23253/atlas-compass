@@ -25,7 +25,7 @@ export function yearNote(cities: City[], tracks: TrackDays, year: string, option
   const previousHasData = previous.records > 0 || previous.trackDays > 0;
   const dateLink = (date: string): string => options.diaries?.has(date) ? noteLink(options.diaries.get(date)!, date) : date;
   const countriesNew = data.countries.filter((country) => {
-    const dates = cities.filter((c) => c.country === country).flatMap((c) => c.visitDates.filter(validVisit)).sort();
+    const dates = cities.filter((c) => c.country === country).reduce<string[]>((dates, city) => dates.concat(city.visitDates.filter(validVisit)), []).sort();
     return dates[0]?.startsWith(year);
   });
   const lines = [
@@ -49,7 +49,9 @@ export function yearNote(cities: City[], tracks: TrackDays, year: string, option
   lines.push("", "## 这一年的出发节奏", "", "点击月份切换路程与足迹，点击有记录的日期查看当天地点。", "", "```atlas-year", JSON.stringify(annualGraphicData(data)), "```", "");
   const quarters = [0, 1, 2, 3].map((index) => {
     const months = data.months.slice(index * 3, index * 3 + 3);
-    const places = [...new Map(months.flatMap((m) => m.places).map((c) => [c.note, c])).values()];
+    const byNote = new Map<string, City>();
+    for (const month of months) for (const city of month.places) byNote.set(city.note, city);
+    const places = [...byNote.values()];
     const days = months.reduce((n, m) => n + m.days, 0);
     const records = months.reduce((n, m) => n + m.records, 0);
     const recordedKm = months.filter((m) => m.km !== null);

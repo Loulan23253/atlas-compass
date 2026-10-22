@@ -7,7 +7,7 @@ export interface JournalReference {
 
 /** 只链接有对应到访日期的现有报告；按月记录不会被推定成某一次旅程。 */
 export function relatedJournals(cities: City[], reports: JournalReference[]): JournalReference[] {
-  const visits = [...new Set(cities.flatMap((c) => c.visitDates).filter(validVisit))].sort();
+  const visits = [...new Set(cities.reduce<string[]>((dates, city) => dates.concat(city.visitDates), []).filter(validVisit))].sort();
   const days = visits.filter(validDay);
   const years = new Set(visits.map((date) => date.slice(0, 4)));
   const matches = reports.filter((r) => r.type === "year-review" ? years.has(r.year ?? "")

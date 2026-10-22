@@ -19,6 +19,14 @@ import {buildCoverageMapSvg} from './src/model/CoverageMap';
 
 const doc='---\\ntype: year-review\\n---\\n\\n<!-- atlas:generated:start -->\\n<!-- atlas:hash:abc123 -->\\n# 我的年度回顾\\n\\n<!-- atlas:generated:end -->\\n\\n## 手写回忆\\n我的照片和故事';
 const ranges=generatedMarkerRanges(doc);assert.equal(ranges.length,2);assert.match(doc.slice(ranges[0].from,ranges[0].to),/atlas:generated:start/);
+assert.deepEqual(generatedMarkerRanges(''),[]);
+for(const ending of [String.fromCharCode(10),String.fromCharCode(13,10)]){
+  const prefix='照片🧭'+ending;
+  const first='<!-- atlas:generated:start -->'+ending;
+  const last='<!-- atlas:hash:abc123 -->';
+  assert.deepEqual(generatedMarkerRanges(prefix+first+last),[{from:prefix.length,to:prefix.length+first.length+last.length}]);
+  assert.deepEqual(generatedMarkerRanges(first+ending+'正文'+ending+last),[{from:0,to:first.length},{from:first.length+ending.length+'正文'.length+ending.length,to:first.length+ending.length+'正文'.length+ending.length+last.length}]);
+}
 assert.equal(generatedMarkerRanges('<!-- 普通注释 -->\\n    <!-- atlas:hash:abc -->').length,0);
 assert.equal(generatedMarkerRanges('~~~html\\n<!-- atlas:generated:start -->\\n<!-- atlas:hash:abc -->\\n~~~').length,0);
 const state=EditorState.create({doc,extensions:[hideGeneratedMarkers]});assert.equal(state.field(generatedMarkersField).size,2);assert.equal(state.doc.toString(),doc);
